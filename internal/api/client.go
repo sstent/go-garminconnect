@@ -89,7 +89,10 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 
 	c.logger.Debugf("Response status: %s", resp.Status)
 
-	// Handle non-200 responses
+	// Handle specific status codes
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("resource not found")
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
