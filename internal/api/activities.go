@@ -1,12 +1,21 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"mime/multipart"
+	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/sstent/go-garminconnect/internal/fit"
 )
 
 // Activity represents a Garmin Connect activity
@@ -115,7 +124,7 @@ func (ar *ActivityResponse) ToActivity() Activity {
 // Weather contains weather conditions during activity
 type Weather struct {
 	Condition   string  `json:"condition"`
-	Temperature float64 `json:"temperature"`
+	Temperature float64  `json:"temperature"`
 	Humidity    float64 `json:"humidity"`
 }
 
@@ -157,7 +166,6 @@ func (gtp *GPSTrackPoint) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ActivitiesResponse represents the response from the activities endpoint
 // ActivitiesResponse represents the response from the activities endpoint
 type ActivitiesResponse struct {
 	Activities []ActivityResponse `json:"activities"`
@@ -216,4 +224,86 @@ func (c *Client) GetActivityDetails(ctx context.Context, activityID int64) (*Act
 	}
 
 	return &activityDetail, nil
+}
+
+// UploadActivity handles FIT file uploads
+func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, error) {
+	path := "/upload-service/upload/.fit"
+	
+	// Validate FIT file
+	if err := fit.Validate(fitFile); err != nil {
+		return 0, fmt.Errorf("invalid FIT file: %w", err)
+	}
+
+	// Prepare multipart form
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "activity.fit")
+	if err != nil {
+		return 0, err
+	}
+	if _, err = io.Copy(part, bytes.NewReader(fitFile)); err != nil {
+		return 0, err
+	}
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, body)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return 0, fmt.Errorf("upload failed with status %d", resp.StatusCode)
+	}
+
+	// Parse response to get activity ID
+	var result struct {
+		ActivityID int64 `json:"activityId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, err
+	}
+
+	return result.ActivityID, nil
+}
+
+// DownloadActivity retrieves a FIT file for an activity
+func (c *Client) DownloadActivity(ctx context.Context, activityID int64) ([]byte, error) {
+	path := fmt.Sprintf("/download-service/export/activity/%d", activityID)
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/fit")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download failed with status %d", resp.StatusCode)
+	}
+
+	return ioutil.ReadAll(resp.Body)
+}
+
+// Validate FIT file structure
+func ValidateFIT(fitFile []byte) error {
+	if len(fitFile) < fit.MinFileSize {
+		return fmt.Errorf("file too small to be a valid FIT file")
+	}
+	if string(fitFile[8:12]) != ".FIT" {
+		return fmt.Errorf("invalid FIT file signature")
+	}
+	return nil
 }

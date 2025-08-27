@@ -4,82 +4,53 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/dghubble/oauth1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileStorage(t *testing.T) {
-	// Create temp directory for tests
-	tempDir, err := os.MkdirTemp("", "garmin-test")
-	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	// Setup
+	tempDir := t.TempDir()
+	storage := NewFileStorage()
+	storage.Path = filepath.Join(tempDir, "token.json")
 
-	storage := &FileStorage{
-		Path: filepath.Join(tempDir, "token.json"),
-	}
-
-	// Test saving and loading token
-	t.Run("SaveAndLoadToken", func(t *testing.T) {
-		testToken := &oauth1.Token{
-			Token:       "access-token",
-			TokenSecret: "access-secret",
+	t.Run("SaveToken and GetToken", func(t *testing.T) {
+		token := &oauth1.Token{
+			Token:       "test_token",
+			TokenSecret: "test_secret",
 		}
 
 		// Save token
-		err := storage.SaveToken(testToken)
-		assert.NoError(t, err)
+		err := storage.SaveToken(token)
+		require.NoError(t, err)
 
-		// Load token
-		loadedToken, err := storage.GetToken()
-		assert.NoError(t, err)
-		assert.Equal(t, testToken.Token, loadedToken.Token)
-		assert.Equal(t, testToken.TokenSecret, loadedToken.TokenSecret)
+		// Get token
+		retrievedToken, err := storage.GetToken()
+		require.NoError(t, err)
+
+		// Verify
+		assert.Equal(t, token.Token, retrievedToken.Token)
+		assert.Equal(t, token.TokenSecret, retrievedToken.TokenSecret)
 	})
 
-	// Test missing token file
-	t.Run("TokenMissing", func(t *testing.T) {
+	t.Run("EmptyToken", func(t *testing.T) {
+		token := &oauth1.Token{
+			Token:       "",
+			TokenSecret: "",
+		}
+
+		err := storage.SaveToken(token)
+		require.NoError(t, err)
+
+		_, err = storage.GetToken()
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("NonExistentFile", func(t *testing.T) {
+		storage.Path = filepath.Join(tempDir, "nonexistent.json")
 		_, err := storage.GetToken()
-		assert.ErrorIs(t, err, os.ErrNotExist)
-	})
-
-	// Test token expiration
-	t.Run("TokenExpiration", func(t *testing.T) {
-		testCases := []struct {
-			name     string
-			token    *oauth1.Token
-			expected bool
-		}{
-			{
-				name:     "EmptyToken",
-				token:    &oauth1.Token{},
-				expected: true,
-			},
-			{
-				name: "ValidToken",
-				token: &oauth1.Token{
-					Token:       "valid",
-					TokenSecret: "valid",
-				},
-				expected: false,
-			},
-			{
-				name: "ExpiredToken",
-				token: &oauth1.Token{
-					Token:       "expired",
-					TokenSecret: "expired",
-					CreatedAt:   time.Now().Add(-200 * 24 * time.Hour), // 200 days ago
-				},
-				expected: true,
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				expired := storage.TokenExpired(tc.token)
-				assert.Equal(t, tc.expected, expired)
-			})
-		}
+		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 }

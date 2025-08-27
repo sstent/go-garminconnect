@@ -16,26 +16,26 @@
 ## Phase Implementation Details
 
 ### Phase 1: Setup & Core Structure
-- [ ] Initialize Go module: `go mod init github.com/sstent/go-garminconnect`
-- [ ] Create directory structure
-- [ ] Set up CI/CD pipeline
-- [ ] Create Makefile with build/test targets
-- [ ] Add basic README with project overview
+- [x] Initialize Go module: `go mod init github.com/sstent/go-garminconnect`
+- [x] Create directory structure
+- [x] Set up CI/CD pipeline
+- [x] Create Makefile with build/test targets
+- [x] Add basic README with project overview
 
 ### Phase 2: Authentication Implementation
-- [ ] Implement OAuth2 authentication flow
-- [ ] Create token storage interface
-- [ ] Implement session management with auto-refresh
-- [ ] Handle MFA authentication
-- [ ] Test against sandbox environment
+- [x] Implement OAuth2 authentication flow
+- [x] Create token storage interface
+- [x] Implement session management with auto-refresh
+- [x] Handle MFA authentication
+- [x] Test against sandbox environment
 
 ### Phase 3: API Client Core
-- [ ] Create Client struct with configuration
-- [ ] Implement generic request handler
-- [ ] Add automatic token refresh
-- [ ] Implement rate limiting
-- [ ] Set up connection pooling
-- [ ] Create response parsing utilities
+- [x] Create Client struct with configuration
+- [x] Implement generic request handler
+- [x] Add automatic token refresh
+- [x] Implement rate limiting
+- [x] Set up connection pooling
+- [x] Create response parsing utilities
 
 ### Phase 4: Endpoint Implementation
 #### Health Data Endpoints
@@ -52,7 +52,10 @@
   - Added GPS track point timestamp parsing
   - Custom time handling with garminTime structure
   - Comprehensive table-driven tests
-- [ ] Activity upload/download
+- [x] Activity upload/download
+  - Added FIT validation
+  - Implemented multipart upload
+  - Added endpoint for downloading activities in FIT format
 - [x] Gear management
   - Implemented GetGearStats
   - Implemented GetGearActivities with pagination
@@ -64,10 +67,12 @@
 - [ ] Goals/badges
 
 ### Phase 5: FIT Handling
-- [ ] Port FIT encoder from Python
-- [ ] Implement weight composition encoding
+- [x] Port FIT encoder from Python
+  - Implemented core encoder with header/CRC
+  - Added support for activity messages
+- [x] Implement weight composition encoding
 - [ ] Create streaming FIT encoder
-- [ ] Add FIT parser
+- [x] Add FIT parser
 
 ### Phase 6: Testing & Quality
 - [ ] Table-driven endpoint tests
@@ -80,7 +85,7 @@
 - [ ] Complete GoDoc coverage
 - [ ] Create usage examples
 - [ ] Build CLI example app
-- [ ] Write migration guide
+- [x] Write migration guide
 
 ## Weekly Milestones
 | Week | Focus Area | Key Deliverables |

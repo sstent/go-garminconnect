@@ -56,6 +56,17 @@ docker compose up -d --build
   - Mock server implementation
   - Test coverage for 200/404 responses
 
+## Activity Upload/Download Implementation
+- [x] Implemented `UploadActivity` endpoint
+  - Handles multipart FIT file uploads
+  - Validates FIT file structure
+  - Returns created activity ID
+- [x] Implemented `DownloadActivity` endpoint
+  - Retrieves activity as FIT binary
+  - Sets proper content headers
+- [x] Added FIT file validation
+- [x] Created comprehensive tests for upload/download flow
+
 ## Gear Management Implementation Details
 - [x] Implemented `GetGearStats` endpoint
   - Retrieves detailed statistics for a gear item
@@ -68,11 +79,14 @@ docker compose up -d --build
   - Test coverage for success and error cases
   - Pagination verification
 
+## MFA Session Management
+- [x] Implemented state persistence for MFA flow
+- [x] Created MFA state storage interface
+- [x] Added file-based implementation for MFA state
+- [x] Integrated with authentication flow
+- [x] Added comprehensive tests for session persistence
+
 ## Next Steps
-- Implement activity upload/download functionality
-- Add FIT file encoder implementation
-- Implement additional API endpoints
-- Complete FIT encoder implementation
+- Create streaming FIT encoder
 - Add comprehensive test coverage for all endpoints
 - Improve error handling and logging
-- Add session management for MFA flow
