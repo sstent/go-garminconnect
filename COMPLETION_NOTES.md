@@ -10,7 +10,7 @@
 - [x] Initial documentation added
 
 ### Phase 2: Authentication System
-- [x] OAuth1 authentication implemented
+- [x] OAuth2 authentication with MFA support implemented
 - [x] Token storage with file-based system
 - [x] MFA handling support
 - [x] Authentication tests
@@ -28,6 +28,10 @@
 
 ### Phase 5: FIT Handling
 - [x] Basic FIT decoder implementation
+- [x] Streaming FIT encoder implementation
+  - io.WriteSeeker interface
+  - Incremental CRC calculation
+  - Memory efficient for large files
 
 ## How to Run the Application
 
@@ -87,6 +91,5 @@ docker compose up -d --build
 - [x] Added comprehensive tests for session persistence
 
 ## Next Steps
-- Create streaming FIT encoder
 - Add comprehensive test coverage for all endpoints
 - Improve error handling and logging

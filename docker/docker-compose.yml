@@ -10,6 +10,15 @@ services:
     networks:
       - garmin-net
 
+  test:
+    image: golang:1.25
+    working_dir: /app
+    volumes:
+      - ../:/app
+    command: go test ./...
+    networks:
+      - garmin-net
+
 networks:
   garmin-net:
     driver: bridge

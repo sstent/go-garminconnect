@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // UserProfile represents a Garmin Connect user profile
@@ -20,6 +21,16 @@ type UserProfile struct {
 	Birthdate     string `json:"birthDate"`
 }
 
+// UserStats represents fitness statistics for a user
+type UserStats struct {
+	TotalSteps    int       `json:"totalSteps"`
+	TotalDistance float64   `json:"totalDistance"` // in meters
+	TotalCalories int       `json:"totalCalories"`
+	ActiveMinutes int       `json:"activeMinutes"`
+	RestingHR     int       `json:"restingHeartRate"`
+	Date          time.Time `json:"date"`
+}
+
 // GetUserProfile retrieves the user's profile information
 func (c *Client) GetUserProfile(ctx context.Context) (*UserProfile, error) {
 	var profile UserProfile
@@ -35,4 +46,15 @@ func (c *Client) GetUserProfile(ctx context.Context) (*UserProfile, error) {
 	}
 	
 	return &profile, nil
+}
+
+// GetUserStats retrieves fitness statistics for a user for a specific date
+func (c *Client) GetUserStats(ctx context.Context, date time.Time) (*UserStats, error) {
+	var stats UserStats
+	path := fmt.Sprintf("/stats-service/stats/daily/%s", date.Format("2006-01-02"))
+	
+	if err := c.Get(ctx, path, &stats); err != nil {
+		return nil, fmt.Errorf("failed to get user stats: %w", err)
+	}
+	return &stats, nil
 }

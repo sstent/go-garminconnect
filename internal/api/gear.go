@@ -1,9 +1,8 @@
 package api
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -30,17 +29,12 @@ type GearActivity struct {
 	Distance     float64   `json:"distance"`            // Distance in meters
 }
 
-// GetGearStats retrieves statistics for a specific gear item by its UUID.
-// Returns a GearStats struct containing gear usage metrics or an error.
-func (c *Client) GetGearStats(gearUUID string) (GearStats, error) {
-	endpoint := "gear-service/stats/" + gearUUID
-	req, err := c.newRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		return GearStats{}, err
-	}
-
+// GetGearStats retrieves statistics for a specific gear item by its UUID
+func (c *Client) GetGearStats(ctx context.Context, gearUUID string) (GearStats, error) {
+	endpoint := fmt.Sprintf("/gear-service/stats/%s", gearUUID)
+	
 	var stats GearStats
-	_, err = c.do(req, &stats)
+	err := c.Get(ctx, endpoint, &stats)
 	if err != nil {
 		return GearStats{}, err
 	}
@@ -48,36 +42,23 @@ func (c *Client) GetGearStats(gearUUID string) (GearStats, error) {
 	return stats, nil
 }
 
-// GetGearActivities retrieves paginated activities associated with a gear item.
-// start: pagination start index
-// limit: maximum number of results to return
-// Returns a slice of GearActivity structs or an error.
-func (c *Client) GetGearActivities(gearUUID string, start, limit int) ([]GearActivity, error) {
-	endpoint := "gear-service/activities/" + gearUUID
+// GetGearActivities retrieves paginated activities associated with a gear item
+func (c *Client) GetGearActivities(ctx context.Context, gearUUID string, start, limit int) ([]GearActivity, error) {
+	endpoint := fmt.Sprintf("/gear-service/activities/%s", gearUUID)
 	params := url.Values{}
 	params.Add("start", strconv.Itoa(start))
 	params.Add("limit", strconv.Itoa(limit))
 	
-	req, err := c.newRequest(http.MethodGet, endpoint+"?"+params.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-
+	u := c.baseURL.ResolveReference(&url.URL{
+		Path:     endpoint,
+		RawQuery: params.Encode(),
+	})
+	
 	var activities []GearActivity
-	_, err = c.do(req, &activities)
+	err := c.Get(ctx, u.String(), &activities)
 	if err != nil {
 		return nil, err
 	}
 
 	return activities, nil
-}
-
-// formatDuration converts total seconds to HH:MM:SS time format.
-// Primarily used for displaying activity durations in a human-readable format.
-func formatDuration(seconds int) string {
-	d := time.Duration(seconds) * time.Second
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-	seconds = int(d.Seconds()) % 60
-	return fmt.Sprintf("%d:%02d:%02d", hours, minutes, seconds)
 }

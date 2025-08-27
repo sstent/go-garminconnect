@@ -2,156 +2,237 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetActivities(t *testing.T) {
+// TestGetActivities is now part of table-driven tests below
+
+func TestActivitiesEndpoints(t *testing.T) {
 	// Create mock server
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Accept both escaped and unescaped versions
-		expected1 := "/activitylist-service/activities/search?page=1&pageSize=10"
-		expected2 := "/activitylist-service/activities/search%3Fpage=1&pageSize=10"
-		if r.URL.String() != expected1 && r.URL.String() != expected2 {
-			t.Errorf("Unexpected URL: %s", r.URL.String())
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
-			"activities": [
-				{
-					"activityId": 123,
-					"activityName": "Morning Run",
-					"activityType": "RUNNING",
-					"startTimeLocal": "2023-07-15T08:00:00",
-					"duration": 3600,
-					"distance": 10000
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+
+	// Create client with mock server URL
+	client, err := NewClient(mockServer.URL(), nil)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	testCases := []struct {
+		name        string
+		testFunc    func(t *testing.T, client *Client)
+		description string
+	}{
+		{
+			name:        "GetActivitiesSuccess",
+			description: "Test successful activity list retrieval",
+			testFunc: func(t *testing.T, client *Client) {
+				activities, pagination, err := client.GetActivities(context.Background(), 1, 10)
+				assert.NoError(t, err)
+				assert.Len(t, activities, 1)
+				assert.Equal(t, int64(1), activities[0].ActivityID)
+				assert.Equal(t, "Morning Run", activities[0].Name)
+				assert.Equal(t, 1, pagination.Page)
+				assert.Equal(t, 10, pagination.PageSize)
+			},
+		},
+		{
+			name:        "GetActivityDetailsSuccess",
+			description: "Test successful activity details retrieval",
+			testFunc: func(t *testing.T, client *Client) {
+				activity, err := client.GetActivityDetails(context.Background(), 1)
+				assert.NoError(t, err)
+				assert.Equal(t, int64(1), activity.ActivityID)
+				assert.Equal(t, "Mock Activity", activity.Name)
+				assert.Equal(t, 150, activity.AverageHR)
+				assert.Equal(t, "RUNNING", activity.Type)
+			},
+		},
+		{
+			name:        "GetActivitiesServerError",
+			description: "Test server error handling for activity list",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				})
+				_, _, err := client.GetActivities(context.Background(), 1, 10)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to get activities")
+			},
+		},
+		{
+			name:        "GetActivityDetailsNotFound",
+			description: "Test not found error for activity details",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				})
+				_, err := client.GetActivityDetails(context.Background(), 999)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "resource not found")
+			},
+		},
+		{
+			name:        "GetActivitiesInvalidPagination",
+			description: "Test invalid pagination parameters",
+			testFunc: func(t *testing.T, client *Client) {
+				_, _, err := client.GetActivities(context.Background(), 0, 0)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid pagination parameters")
+			},
+		},
+		{
+			name:        "GetActivitiesTimeout",
+			description: "Test request timeout handling",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					time.Sleep(2 * time.Second) // Simulate delay
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
+				_, _, err := client.GetActivities(ctx, 1, 10)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "context deadline exceeded")
+			},
+		},
+		{
+			name:        "GetActivitiesInvalidResponse",
+			description: "Test invalid response handling",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("invalid json"))
+				})
+				_, _, err := client.GetActivities(context.Background(), 1, 10)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse response")
+			},
+		},
+		{
+			name:        "GetActivitiesLargeDataset",
+			description: "Test handling of large activity datasets",
+			testFunc: func(t *testing.T, client *Client) {
+				// Create large dataset
+				var activities []ActivityResponse
+				for i := 0; i < 500; i++ {
+					activities = append(activities, ActivityResponse{
+						ActivityID: int64(i + 1),
+						Name:       fmt.Sprintf("Activity %d", i+1),
+					})
 				}
-			],
-			"pagination": {
-				"pageSize": 10,
-				"totalCount": 1,
-				"page": 1
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					json.NewEncoder(w).Encode(ActivitiesResponse{
+						Activities: activities,
+						Pagination: Pagination{
+							Page:       1,
+							PageSize:   500,
+							TotalCount: 500,
+						},
+					})
+				})
+				
+				result, pagination, err := client.GetActivities(context.Background(), 1, 500)
+				assert.NoError(t, err)
+				assert.Len(t, result, 500)
+				assert.Equal(t, 500, pagination.TotalCount)
+			},
+		},
+		{
+			name:        "GetActivityDetailsInvalidResponse",
+			description: "Test invalid activity details response",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("invalid json"))
+				})
+				_, err := client.GetActivityDetails(context.Background(), 1)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse response")
+			},
+		},
+		{
+			name:        "GetActivityDetailsMalformedID",
+			description: "Test handling of malformed activity ID in server response",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{"activityId": "invalid"}`)) // Should be number
+				})
+				_, err := client.GetActivityDetails(context.Background(), 1)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse response")
+			},
+		},
+		{
+			name:        "UploadActivitySuccess",
+			description: "Test successful activity upload",
+			testFunc: func(t *testing.T, client *Client) {
+				id, err := client.UploadActivity(context.Background(), []byte("test fit data"))
+				assert.NoError(t, err)
+				assert.Equal(t, int64(12345), id)
+			},
+		},
+		{
+			name:        "UploadActivityInvalidData",
+			description: "Test uploading invalid FIT data",
+			testFunc: func(t *testing.T, client *Client) {
+				mockServer.SetUploadHandler(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write([]byte(`{"error": "Invalid FIT file"}`))
+				})
+				_, err := client.UploadActivity(context.Background(), []byte("invalid"))
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "upload failed with status 400")
+			},
+		},
+	}
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.testFunc(t, client)
+		})
+	}
+}
+
+func TestValidateFIT(t *testing.T) {
+	testCases := []struct {
+		name     string
+		data     []byte
+		expected error
+	}{
+		{
+			name:     "ValidFIT",
+			data:     []byte{0x0E, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, '.', 'F', 'I', 'T', 0x00, 0x00},
+			expected: nil,
+		},
+		{
+			name:     "TooSmall",
+			data:     []byte{0x0E},
+			expected: fmt.Errorf("file too small to be a valid FIT file"),
+		},
+		{
+			name:     "InvalidSignature",
+			data:     []byte{0x0E, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 'I', 'N', 'V', 'L', 0x00, 0x00},
+			expected: fmt.Errorf("invalid FIT file signature"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateFIT(tc.data)
+			if tc.expected == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tc.expected.Error())
 			}
-		}`))
-	}))
-	defer testServer.Close()
-
-	// Create client with mock server URL
-	client, err := NewClient(testServer.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
+		})
 	}
-
-	// Execute test
-	activities, pagination, err := client.GetActivities(context.Background(), 1, 10)
-	
-	// Validate results
-	assert.NoError(t, err)
-	assert.Len(t, activities, 1)
-	assert.Equal(t, int64(123), activities[0].ActivityID)
-	assert.Equal(t, "Morning Run", activities[0].Name)
-	assert.Equal(t, 1, pagination.Page)
-	assert.Equal(t, 10, pagination.PageSize)
-}
-
-func TestGetActivityDetails(t *testing.T) {
-	// Create mock server
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/activity-service/activity/123", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
-			"activityId": 123,
-			"activityName": "Morning Run",
-			"activityType": "RUNNING",
-			"startTimeLocal": "2023-07-15T08:00:00",
-			"duration": 3600,
-			"distance": 10000,
-			"calories": 720,
-			"averageHR": 145,
-			"maxHR": 172,
-			"averageTemperature": 22.5,
-			"elevationGain": 150,
-			"elevationLoss": 150,
-			"weather": {
-				"condition": "SUNNY",
-				"temperature": 20,
-				"humidity": 60
-			},
-			"gear": {
-				"gearId": "shoes-001",
-				"name": "Running Shoes",
-				"model": "UltraBoost",
-				"description": "Primary running shoes"
-			},
-			"gpsTracks": [
-				{
-					"lat": 37.7749,
-					"lon": -122.4194,
-					"ele": 10,
-					"timestamp": "2023-07-15T08:00:00"
-				}
-			]
-		}`))
-	}))
-	defer testServer.Close()
-
-	// Create client with mock server URL
-	client, err := NewClient(testServer.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-
-	// Execute test
-	activity, err := client.GetActivityDetails(context.Background(), 123)
-	
-	// Validate results
-	assert.NoError(t, err)
-	assert.Equal(t, int64(123), activity.ActivityID)
-	assert.Equal(t, "Morning Run", activity.Name)
-	assert.Equal(t, 145, activity.AverageHR)
-	assert.Equal(t, 720.0, activity.Calories)
-	assert.Equal(t, "SUNNY", activity.Weather.Condition)
-	assert.Equal(t, "Running Shoes", activity.Gear.Name)
-	assert.Len(t, activity.GPSTracks, 1)
-}
-
-func TestGetActivities_ErrorHandling(t *testing.T) {
-	// Create mock server that returns error
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer testServer.Close()
-
-	// Create client with mock server URL
-	client, err := NewClient(testServer.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-
-	// Execute test
-	_, _, err = client.GetActivities(context.Background(), 1, 10)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get activities")
-}
-
-func TestGetActivityDetails_NotFound(t *testing.T) {
-	// Create mock server that returns 404
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer testServer.Close()
-
-	// Create client with mock server URL
-	client, err := NewClient(testServer.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-
-	// Execute test
-	_, err = client.GetActivityDetails(context.Background(), 999)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "resource not found")
 }

@@ -1,37 +1,49 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 
 	"github.com/sstent/go-garminconnect/internal/auth"
+	"github.com/sstent/go-garminconnect/internal/api"
 )
 
 func main() {
-	// Get consumer key and secret from environment
-	consumerKey := os.Getenv("GARMIN_CONSUMER_KEY")
-	consumerSecret := os.Getenv("GARMIN_CONSUMER_SECRET")
-	if consumerKey == "" || consumerSecret == "" {
-		fmt.Println("GARMIN_CONSUMER_KEY and GARMIN_CONSUMER_SECRET must be set")
+	// Get credentials from environment
+	username := os.Getenv("GARMIN_USERNAME")
+	password := os.Getenv("GARMIN_PASSWORD")
+	if username == "" || password == "" {
+		fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set")
 		os.Exit(1)
 	}
 
-	// Configure authentication
-	oauthConfig := &auth.OAuthConfig{
-		ConsumerKey:    consumerKey,
-		ConsumerSecret: consumerSecret,
+	// Create authentication client
+	authClient := auth.NewAuthClient()
+
+	// Authenticate with credentials
+	token, err := authClient.Authenticate(context.Background(), username, password, "")
+	if err != nil {
+		fmt.Printf("Authentication failed: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Set up token storage
-	tokenStorage := auth.NewFileStorage()
+	// API client not currently used in this simple server
+	// It's created here for demonstration purposes only
+	_, err = api.NewClient(token.AccessToken)
+	if err != nil {
+		fmt.Printf("Failed to create API client: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Create HTTP server
 	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/login", loginHandler(oauthConfig, tokenStorage))
-	http.HandleFunc("/callback", callbackHandler(oauthConfig, tokenStorage))
-	http.HandleFunc("/mfa", auth.MFAHandler)
 	http.HandleFunc("/health", healthHandler)
+
+	// For demonstration purposes, print API client status
+	// This line was removed because baseURL is unexported
+	// fmt.Printf("API client initialized for %s\n", apiClient.baseURL)
 
 	fmt.Println("Server listening on :8080")
 	http.ListenAndServe(":8080", nil)
@@ -42,27 +54,13 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<html>
 			<body>
 				<h1>Go GarminConnect Client</h1>
-				<a href="/login">Login with Garmin</a>
+				<p>Authentication successful! API client ready.</p>
 			</body>
 		</html>
 	`))
 }
 
-func loginHandler(config *auth.OAuthConfig, storage auth.TokenStorage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		auth.Authenticate(w, r, config, storage)
-	}
-}
-
-func callbackHandler(config *auth.OAuthConfig, storage auth.TokenStorage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// In a real app, we'd retrieve the request secret from session storage
-		// For now, we'll use a placeholder
-		requestSecret := "placeholder-secret"
-		
-		auth.Callback(w, r, config, storage, requestSecret)
-	}
-}
+// Removed OAuth handlers since we're using credentials-based auth
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)

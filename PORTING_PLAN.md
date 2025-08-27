@@ -23,7 +23,7 @@
 - [x] Add basic README with project overview
 
 ### Phase 2: Authentication Implementation
-- [x] Implement OAuth2 authentication flow
+- [x] Implement OAuth2 authentication flow with MFA support
 - [x] Create token storage interface
 - [x] Implement session management with auto-refresh
 - [x] Handle MFA authentication
@@ -71,7 +71,10 @@
   - Implemented core encoder with header/CRC
   - Added support for activity messages
 - [x] Implement weight composition encoding
-- [ ] Create streaming FIT encoder
+- [x] Create streaming FIT encoder
+  - Supports io.WriteSeeker interface
+  - Implements incremental CRC calculation
+  - Handles large files with minimal memory
 - [x] Add FIT parser
 
 ### Phase 6: Testing & Quality

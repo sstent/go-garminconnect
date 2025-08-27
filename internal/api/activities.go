@@ -6,12 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -231,8 +228,8 @@ func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, err
 	path := "/upload-service/upload/.fit"
 	
 	// Validate FIT file
-	if err := fit.Validate(fitFile); err != nil {
-		return 0, fmt.Errorf("invalid FIT file: %w", err)
+	if valid := fit.Validate(fitFile); !valid {
+		return 0, fmt.Errorf("invalid FIT file: signature verification failed")
 	}
 
 	// Prepare multipart form
@@ -247,7 +244,8 @@ func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, err
 	}
 	writer.Close()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, body)
+	fullURL := c.baseURL.ResolveReference(&url.URL{Path: path}).String()
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, body)
 	if err != nil {
 		return 0, err
 	}
@@ -278,7 +276,8 @@ func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, err
 func (c *Client) DownloadActivity(ctx context.Context, activityID int64) ([]byte, error) {
 	path := fmt.Sprintf("/download-service/export/activity/%d", activityID)
 	
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
+	fullURL := c.baseURL.ResolveReference(&url.URL{Path: path}).String()
+	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -294,12 +293,12 @@ func (c *Client) DownloadActivity(ctx context.Context, activityID int64) ([]byte
 		return nil, fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 // Validate FIT file structure
 func ValidateFIT(fitFile []byte) error {
-	if len(fitFile) < fit.MinFileSize {
+	if len(fitFile) < fit.MinFileSize() {
 		return fmt.Errorf("file too small to be a valid FIT file")
 	}
 	if string(fitFile[8:12]) != ".FIT" {

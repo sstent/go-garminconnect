@@ -1,34 +1,60 @@
-# Go GarminConnect Port Implementation Plan
+# Go-GarminConnect Porting Project - Remaining Tasks
 
-## Phase 1: Setup & Core Structure
-- [x] Initialize Go module
-- [x] Create directory structure
-- [x] Set up CI/CD pipeline basics
-- [x] Create basic Docker infrastructure
-- [x] Add initial documentation
+## Endpoint Implementation
+### Health Data Endpoints
+- [ ] Body composition API endpoint
+- [ ] Sleep data retrieval and parsing
+- [ ] Heart rate/HRV/RHR data endpoint
+- [ ] Stress data API implementation
+- [ ] Body battery endpoint
 
-## Phase 2: Authentication System
-- [ ] Implement OAuth2 flow
-- [ ] Create token storage interface
-- [ ] Add MFA handling
-- [ ] Write authentication tests
+### User Data Endpoints
+- [ ] User summary endpoint
+- [ ] Daily statistics API
+- [ ] Goals/badges endpoint implementation
+- [ ] Hydration data endpoint
+- [ ] Respiration data API
 
-## Phase 3: API Client Core
-- [ ] Define Client struct
-- [ ] Implement request/response handling
-- [ ] Add error handling
-- [ ] Setup logging
-- [ ] Implement rate limiting
+### Activity Endpoints
+- [ ] Activity type filtering
+- [ ] Activity comment functionality
+- [ ] Activity like/unlike feature
+- [ ] Activity sharing options
 
-## Phase 4: Endpoint Implementation
-- [ ] Port user profile endpoint
-- [ ] Port activities endpoints
-- [ ] Port health data endpoints
-- [ ] Implement pagination handling
-- [ ] Add response validation
+## FIT File Handling
+- [ ] Complete weight composition encoding
+- [ ] Implement all-day stress FIT encoding
+- [ ] Add HRV data to FIT export
+- [ ] Validate FIT compatibility with Garmin devices
+- [ ] Optimize FIT file parsing performance
 
-## Phase 5: FIT Handling
-- [x] Create FIT decoder
-- [ ] Implement FIT encoder
-- [ ] Add FIT file tests
-- [ ] Integrate with activity endpoints
+## Testing & Quality Assurance
+- [ ] Implement table-driven tests for all endpoints
+- [ ] Create mock server for isolated testing
+- [ ] Add golden file tests for FIT validation
+- [ ] Complete performance benchmarks
+- [ ] Integrate static analysis (golangci-lint)
+- [ ] Implement code coverage reporting
+- [ ] Add stress/load testing scenarios
+
+## Documentation & Examples
+- [ ] Complete GoDoc coverage for all packages
+- [ ] Create usage examples for all API endpoints
+- [ ] Build CLI demonstration application
+- [ ] Port Python examples to Go equivalents
+- [ ] Update README with comprehensive documentation
+- [ ] Create migration guide from Python library
+
+## Infrastructure & Optimization
+- [ ] Implement connection pooling
+- [ ] Complete rate limiting mechanism
+- [ ] Optimize session management
+- [ ] Add automatic token refresh tests
+- [ ] Implement response caching
+- [ ] Add circuit breaker pattern for API calls
+
+## Project Management
+- [ ] Prioritize health data endpoints (critical path)
+- [ ] Create GitHub project board for tracking
+- [ ] Set up milestone tracking
+- [ ] Assign priority labels (P0, P1, P2)
