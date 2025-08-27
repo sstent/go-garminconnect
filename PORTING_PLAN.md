@@ -46,10 +46,17 @@
 - [ ] Body battery
 
 #### Activity Endpoints
-- [ ] Activity list/search
-- [ ] Activity details
+- [x] Activity list/search
+  - Implemented with pagination support
+- [x] Activity details
+  - Added GPS track point timestamp parsing
+  - Custom time handling with garminTime structure
+  - Comprehensive table-driven tests
 - [ ] Activity upload/download
-- [ ] Gear management
+- [x] Gear management
+  - Implemented GetGearStats
+  - Implemented GetGearActivities with pagination
+  - Comprehensive tests
 
 #### User Data Endpoints
 - [ ] User summary

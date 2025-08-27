@@ -18,6 +18,7 @@ type Client struct {
 	httpClient *http.Client
 	limiter    *rate.Limiter
 	logger     Logger
+	Gear       *GearService
 }
 
 // NewClient creates a new API client
@@ -36,6 +37,7 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 		httpClient: httpClient,
 		limiter:    rate.NewLimiter(rate.Every(time.Second/10), 10), // 10 requests per second
 		logger:     &stdLogger{},
+		Gear:       &GearService{},
 	}, nil
 }
 

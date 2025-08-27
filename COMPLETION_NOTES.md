@@ -45,9 +45,34 @@ docker compose up -d --build
 
 3. Access the application at: http://localhost:8080
 
+## Activity Endpoints Implementation Details
+- [x] Implemented `GetActivities` with pagination support
+- [x] Created `GetActivityDetails` endpoint
+- [x] Added custom JSON unmarshalling for activity data
+- [x] Implemented robust error handling for 404 responses
+- [x] Added GPS track point timestamp parsing
+- [x] Created comprehensive table-driven tests
+  - Custom time parsing with garminTime structure
+  - Mock server implementation
+  - Test coverage for 200/404 responses
+
+## Gear Management Implementation Details
+- [x] Implemented `GetGearStats` endpoint
+  - Retrieves detailed statistics for a gear item
+  - Handles 404 responses for invalid UUIDs
+- [x] Implemented `GetGearActivities` endpoint
+  - Supports pagination (start, limit parameters)
+  - Returns activity details with proper time formatting
+- [x] Added comprehensive table-driven tests
+  - Mock server implementations
+  - Test coverage for success and error cases
+  - Pagination verification
+
 ## Next Steps
+- Implement activity upload/download functionality
+- Add FIT file encoder implementation
 - Implement additional API endpoints
 - Complete FIT encoder implementation
-- Add comprehensive test coverage
+- Add comprehensive test coverage for all endpoints
 - Improve error handling and logging
 - Add session management for MFA flow
