@@ -1,0 +1,15 @@
+services:
+  go-garminconnect:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=release
+    networks:
+      - garmin-net
+
+networks:
+  garmin-net:
+    driver: bridge
