@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"time"
 	"sync"
+	"time"
 )
 
 // MFAState represents the state of an MFA verification session

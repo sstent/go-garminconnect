@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +38,7 @@ func TestGearService(t *testing.T) {
 
 			activities := []GearActivity{
 				{ActivityID: 1, ActivityName: "Run 1", StartTime: time.Now(), Duration: 1800, Distance: 5000},
-				{ActivityID: 2, ActivityName: "Run 2", StartTime: time.Now().Add(-24*time.Hour), Duration: 3600, Distance: 10000},
+				{ActivityID: 2, ActivityName: "Run 2", StartTime: time.Now().Add(-24 * time.Hour), Duration: 3600, Distance: 10000},
 			}
 
 			// Simulate pagination
@@ -64,36 +65,39 @@ func TestGearService(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	// Create mock session
+	session := &garth.Session{OAuth2Token: "test-token"}
+
 	// Create client
-	client, _ := NewClient(srv.URL, http.DefaultClient)
-	client.SetLogger(NewTestLogger(t))
+	client, _ := NewClient(session, "")
+	client.HTTPClient.SetBaseURL(srv.URL)
 
 	t.Run("GetGearStats success", func(t *testing.T) {
-		stats, err := client.GetGearStats("valid-uuid")
+		stats, err := client.GetGearStats(context.Background(), "valid-uuid")
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Gear", stats.Name)
 		assert.Equal(t, 1500.5, stats.Distance)
 	})
 
 	t.Run("GetGearStats not found", func(t *testing.T) {
-		_, err := client.GetGearStats("invalid-uuid")
+		_, err := client.GetGearStats(context.Background(), "invalid-uuid")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "status code: 404")
+		assert.Contains(t, err.Error(), "API error")
 	})
 
 	t.Run("GetGearActivities pagination", func(t *testing.T) {
-		activities, err := client.GetGearActivities("valid-uuid", 0, 1)
+		activities, err := client.GetGearActivities(context.Background(), "valid-uuid", 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, activities, 1)
 		assert.Equal(t, "Run 1", activities[0].ActivityName)
 
-		activities, err = client.GetGearActivities("valid-uuid", 1, 1)
+		activities, err = client.GetGearActivities(context.Background(), "valid-uuid", 1, 1)
 		assert.NoError(t, err)
 		assert.Len(t, activities, 1)
 		assert.Equal(t, "Run 2", activities[0].ActivityName)
-		
-		_, err = client.GetGearActivities("invalid-uuid", 0, 10)
+
+		_, err = client.GetGearActivities(context.Background(), "invalid-uuid", 0, 10)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "status code: 404")
+		assert.Contains(t, err.Error(), "API error")
 	})
 }

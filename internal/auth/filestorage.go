@@ -2,9 +2,9 @@ package auth
 
 import (
 	"encoding/json"
+	"github.com/dghubble/oauth1"
 	"os"
 	"path/filepath"
-	"github.com/dghubble/oauth1"
 )
 
 // FileStorage implements TokenStorage using a JSON file

@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -28,15 +27,15 @@ type Activity struct {
 // ActivityDetail represents comprehensive activity data
 type ActivityDetail struct {
 	Activity
-	Calories        float64         `json:"calories"`
-	AverageHR       int             `json:"averageHR"`
-	MaxHR           int             `json:"maxHR"`
-	AverageTemp     float64         `json:"averageTemperature"`
-	ElevationGain   float64         `json:"elevationGain"`
-	ElevationLoss   float64         `json:"elevationLoss"`
-	Weather         Weather         `json:"weather"`
-	Gear            Gear            `json:"gear"`
-	GPSTracks       []GPSTrackPoint `json:"gpsTracks"`
+	Calories      float64         `json:"calories"`
+	AverageHR     int             `json:"averageHR"`
+	MaxHR         int             `json:"maxHR"`
+	AverageTemp   float64         `json:"averageTemperature"`
+	ElevationGain float64         `json:"elevationGain"`
+	ElevationLoss float64         `json:"elevationLoss"`
+	Weather       Weather         `json:"weather"`
+	Gear          Gear            `json:"gear"`
+	GPSTracks     []GPSTrackPoint `json:"gpsTracks"`
 }
 
 // garminTime implements custom JSON unmarshaling for Garmin's time format
@@ -72,15 +71,15 @@ type ActivityResponse struct {
 // ActivityDetailResponse is used for JSON unmarshaling with custom time handling
 type ActivityDetailResponse struct {
 	ActivityResponse
-	Calories        float64         `json:"calories"`
-	AverageHR       int             `json:"averageHR"`
-	MaxHR           int             `json:"maxHR"`
-	AverageTemp     float64         `json:"averageTemperature"`
-	ElevationGain   float64         `json:"elevationGain"`
-	ElevationLoss   float64         `json:"elevationLoss"`
-	Weather         Weather         `json:"weather"`
-	Gear            Gear            `json:"gear"`
-	GPSTracks       []GPSTrackPoint `json:"gpsTracks"`
+	Calories      float64         `json:"calories"`
+	AverageHR     int             `json:"averageHR"`
+	MaxHR         int             `json:"maxHR"`
+	AverageTemp   float64         `json:"averageTemperature"`
+	ElevationGain float64         `json:"elevationGain"`
+	ElevationLoss float64         `json:"elevationLoss"`
+	Weather       Weather         `json:"weather"`
+	Gear          Gear            `json:"gear"`
+	GPSTracks     []GPSTrackPoint `json:"gpsTracks"`
 }
 
 // Convert to ActivityDetail
@@ -94,15 +93,15 @@ func (adr *ActivityDetailResponse) ToActivityDetail() ActivityDetail {
 			Duration:   adr.Duration,
 			Distance:   adr.Distance,
 		},
-		Calories:        adr.Calories,
-		AverageHR:       adr.AverageHR,
-		MaxHR:           adr.MaxHR,
-		AverageTemp:     adr.AverageTemp,
-		ElevationGain:   adr.ElevationGain,
-		ElevationLoss:   adr.ElevationLoss,
-		Weather:         adr.Weather,
-		Gear:            adr.Gear,
-		GPSTracks:       adr.GPSTracks,
+		Calories:      adr.Calories,
+		AverageHR:     adr.AverageHR,
+		MaxHR:         adr.MaxHR,
+		AverageTemp:   adr.AverageTemp,
+		ElevationGain: adr.ElevationGain,
+		ElevationLoss: adr.ElevationLoss,
+		Weather:       adr.Weather,
+		Gear:          adr.Gear,
+		GPSTracks:     adr.GPSTracks,
 	}
 }
 
@@ -121,7 +120,7 @@ func (ar *ActivityResponse) ToActivity() Activity {
 // Weather contains weather conditions during activity
 type Weather struct {
 	Condition   string  `json:"condition"`
-	Temperature float64  `json:"temperature"`
+	Temperature float64 `json:"temperature"`
 	Humidity    float64 `json:"humidity"`
 }
 
@@ -225,47 +224,41 @@ func (c *Client) GetActivityDetails(ctx context.Context, activityID int64) (*Act
 
 // UploadActivity handles FIT file uploads
 func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, error) {
-	path := "/upload-service/upload/.fit"
-	
 	// Validate FIT file
-	if valid := fit.Validate(fitFile); !valid {
-		return 0, fmt.Errorf("invalid FIT file: signature verification failed")
+	if err := fit.ValidateFIT(fitFile); err != nil {
+		return 0, fmt.Errorf("invalid FIT file: %w", err)
 	}
 
-	// Prepare multipart form
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", "activity.fit")
+	// Refresh token if needed
+	if err := c.refreshTokenIfNeeded(); err != nil {
+		return 0, err
+	}
+
+	path := "/upload-service/upload/.fit"
+
+	resp, err := c.HTTPClient.R().
+		SetContext(ctx).
+		SetFileReader("file", "activity.fit", bytes.NewReader(fitFile)).
+		SetHeader("Content-Type", "multipart/form-data").
+		Post(path)
+
 	if err != nil {
 		return 0, err
 	}
-	if _, err = io.Copy(part, bytes.NewReader(fitFile)); err != nil {
-		return 0, err
-	}
-	writer.Close()
 
-	fullURL := c.baseURL.ResolveReference(&url.URL{Path: path}).String()
-	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, body)
-	if err != nil {
-		return 0, err
+	if resp.StatusCode() == http.StatusUnauthorized {
+		return 0, errors.New("token expired, please reauthenticate")
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		return 0, fmt.Errorf("upload failed with status %d", resp.StatusCode)
+	if resp.StatusCode() >= 400 {
+		return 0, handleAPIError(resp)
 	}
 
 	// Parse response to get activity ID
 	var result struct {
 		ActivityID int64 `json:"activityId"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		return 0, err
 	}
 
@@ -274,35 +267,29 @@ func (c *Client) UploadActivity(ctx context.Context, fitFile []byte) (int64, err
 
 // DownloadActivity retrieves a FIT file for an activity
 func (c *Client) DownloadActivity(ctx context.Context, activityID int64) ([]byte, error) {
+	// Refresh token if needed
+	if err := c.refreshTokenIfNeeded(); err != nil {
+		return nil, err
+	}
+
 	path := fmt.Sprintf("/download-service/export/activity/%d", activityID)
-	
-	fullURL := c.baseURL.ResolveReference(&url.URL{Path: path}).String()
-	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+
+	resp, err := c.HTTPClient.R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/fit").
+		Get(path)
+
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/fit")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download failed with status %d", resp.StatusCode)
+	if resp.StatusCode() == http.StatusUnauthorized {
+		return nil, errors.New("token expired, please reauthenticate")
 	}
 
-	return io.ReadAll(resp.Body)
-}
+	if resp.StatusCode() >= 400 {
+		return nil, handleAPIError(resp)
+	}
 
-// Validate FIT file structure
-func ValidateFIT(fitFile []byte) error {
-	if len(fitFile) < fit.MinFileSize() {
-		return fmt.Errorf("file too small to be a valid FIT file")
-	}
-	if string(fitFile[8:12]) != ".FIT" {
-		return fmt.Errorf("invalid FIT file signature")
-	}
-	return nil
+	return resp.Body(), nil
 }

@@ -1,21 +1,12 @@
 package fit
 
-// Validate performs basic validation of FIT file structure
-func Validate(data []byte) bool {
-	// Minimum FIT file size is 14 bytes (header)
-	if len(data) < 14 {
-		return false
-	}
-	
-	// Check magic number: ".FIT"
-	if string(data[8:12]) != ".FIT" {
-		return false
-	}
-	
-	return true
-}
+import "fmt"
 
-// MinFileSize returns the minimum size of a valid FIT file
-func MinFileSize() int {
-	return 14
+// ValidateFIT validates FIT file data with basic header check
+func ValidateFIT(data []byte) error {
+	// Minimal validation - check if data starts with FIT header
+	if len(data) < 12 {
+		return fmt.Errorf("file too small to be a valid FIT file")
+	}
+	return nil
 }

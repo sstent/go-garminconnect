@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/sstent/go-garminconnect/internal/auth"
-	"github.com/sstent/go-garminconnect/internal/api"
 )
 
 func main() {
@@ -23,17 +22,9 @@ func main() {
 	authClient := auth.NewAuthClient()
 
 	// Authenticate with credentials
-	token, err := authClient.Authenticate(context.Background(), username, password, "")
+	_, err := authClient.Authenticate(context.Background(), username, password, "")
 	if err != nil {
 		fmt.Printf("Authentication failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	// API client not currently used in this simple server
-	// It's created here for demonstration purposes only
-	_, err = api.NewClient(token.AccessToken)
-	if err != nil {
-		fmt.Printf("Failed to create API client: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -24,11 +24,11 @@ func (t Time) Format(layout string) string {
 
 // BodyComposition represents body composition metrics from Garmin Connect
 type BodyComposition struct {
-	BoneMass      float64 `json:"boneMass"`      // Grams
-	MuscleMass    float64 `json:"muscleMass"`    // Grams
-	BodyFat       float64 `json:"bodyFat"`       // Percentage
-	Hydration     float64 `json:"hydration"`     // Percentage
-	Timestamp     Time    `json:"timestamp"`     // Measurement time
+	BoneMass   float64 `json:"boneMass"`   // Grams
+	MuscleMass float64 `json:"muscleMass"` // Grams
+	BodyFat    float64 `json:"bodyFat"`    // Percentage
+	Hydration  float64 `json:"hydration"`  // Percentage
+	Timestamp  Time    `json:"timestamp"`  // Measurement time
 }
 
 // BodyCompositionRequest defines parameters for body composition API requests

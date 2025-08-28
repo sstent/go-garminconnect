@@ -7,20 +7,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetBodyComposition(t *testing.T) {
 	// Create test server for mocking API responses
+	// Create mock session
+	session := &garth.Session{OAuth2Token: "valid-token"}
+
+	// Create test server for mocking API responses
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/body-composition?startDate=2023-01-01&endDate=2023-01-31", r.URL.String())
-		
+
 		// Return different responses based on test cases
-		if r.Header.Get("Authorization") == "Bearer invalid-token" {
+		if r.Header.Get("Authorization") != "Bearer valid-token" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		
+
 		if r.URL.Query().Get("startDate") == "2023-02-01" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -41,8 +46,9 @@ func TestGetBodyComposition(t *testing.T) {
 	defer server.Close()
 
 	// Setup client with test server
-	client := NewClient(server.URL, "valid-token")
-	
+	client, _ := NewClient(session, "")
+	client.HTTPClient.SetBaseURL(server.URL)
+
 	// Test cases
 	testCases := []struct {
 		name        string
@@ -54,12 +60,14 @@ func TestGetBodyComposition(t *testing.T) {
 	}{
 		{
 			name:        "Successful request",
-			token:       "valid-token",
+			token:       "valid-token", // Test case doesn't actually change client token now
 			start:       time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			end:         time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC),
 			expectError: false,
 			expectedLen: 1,
 		},
+		// Unauthorized test case is handled by the mock server's token check
+		// We need to create a new client with invalid token
 		{
 			name:        "Unauthorized access",
 			token:       "invalid-token",
@@ -78,7 +86,18 @@ func TestGetBodyComposition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			client.token = tc.token
+			// For unauthorized test, create a separate client
+			if tc.token == "invalid-token" {
+				invalidSession := &garth.Session{OAuth2Token: "invalid-token"}
+				invalidClient, _ := NewClient(invalidSession, "")
+				invalidClient.HTTPClient.SetBaseURL(server.URL)
+				client = invalidClient
+			} else {
+				validSession := &garth.Session{OAuth2Token: "valid-token"}
+				validClient, _ := NewClient(validSession, "")
+				validClient.HTTPClient.SetBaseURL(server.URL)
+				client = validClient
+			}
 			results, err := client.GetBodyComposition(context.Background(), BodyCompositionRequest{
 				StartDate: Time(tc.start),
 				EndDate:   Time(tc.end),
@@ -91,7 +110,7 @@ func TestGetBodyComposition(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, results, tc.expectedLen)
-			
+
 			if tc.expectedLen > 0 {
 				result := results[0]
 				assert.Equal(t, 2.8, result.BoneMass)

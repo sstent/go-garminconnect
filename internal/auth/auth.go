@@ -49,7 +49,7 @@ func (c *AuthClient) fetchLoginParams(ctx context.Context) (lt, execution string
 	// For debugging: Log response status and headers
 	debugLog("Login page response status: %s", resp.Status)
 	debugLog("Login page response headers: %v", resp.Header)
-	
+
 	// Write body to debug log if it's not too large
 	if len(body) < 5000 {
 		debugLog("Login page body: %s", body)
@@ -83,17 +83,17 @@ func extractParam(pattern, body string) (string, error) {
 // getBrowserHeaders returns browser-like headers for requests
 func getBrowserHeaders() http.Header {
 	return http.Header{
-		"User-Agent":      {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
-		"Accept":          {"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"},
-		"Accept-Language": {"en-US,en;q=0.9"},
-		"Accept-Encoding": {"gzip, deflate, br"},
-		"Connection":      {"keep-alive"},
-		"Cache-Control":   {"max-age=0"},
-		"Sec-Fetch-Site":  {"none"},
-		"Sec-Fetch-Mode":  {"navigate"},
-		"Sec-Fetch-User":  {"?1"},
-		"Sec-Fetch-Dest":  {"document"},
-		"DNT":             {"1"},
+		"User-Agent":                {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
+		"Accept":                    {"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"},
+		"Accept-Language":           {"en-US,en;q=0.9"},
+		"Accept-Encoding":           {"gzip, deflate, br"},
+		"Connection":                {"keep-alive"},
+		"Cache-Control":             {"max-age=0"},
+		"Sec-Fetch-Site":            {"none"},
+		"Sec-Fetch-Mode":            {"navigate"},
+		"Sec-Fetch-User":            {"?1"},
+		"Sec-Fetch-Dest":            {"document"},
+		"DNT":                       {"1"},
 		"Upgrade-Insecure-Requests": {"1"},
 	}
 }
@@ -186,18 +186,19 @@ func (c *AuthClient) Authenticate(ctx context.Context, username, password, mfaTo
 	// Exchange ticket for tokens
 	return c.exchangeTicketForTokens(ctx, authResponse.Ticket)
 }
+
 // extractSSOTicket finds the authentication ticket in the SSO response
 func extractSSOTicket(body string) (string, error) {
 	// The ticket is typically in a hidden input field
 	ticketPattern := `name="ticket"\s+value="([^"]+)"`
 	re := regexp.MustCompile(ticketPattern)
 	matches := re.FindStringSubmatch(body)
-	
+
 	if len(matches) < 2 {
 		if strings.Contains(body, "Cloudflare") {
-		return "", errors.New("Cloudflare bot protection triggered")
-	}
-	return "", errors.New("ticket not found in SSO response")
+			return "", errors.New("Cloudflare bot protection triggered")
+		}
+		return "", errors.New("ticket not found in SSO response")
 	}
 	return matches[1], nil
 }

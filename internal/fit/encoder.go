@@ -31,9 +31,9 @@ func NewFitEncoder(w io.WriteSeeker) (*FitEncoder, error) {
 
 	// Write header placeholder
 	header := []byte{
-		14,            // Header size
-		0x10,          // Protocol version
-		0x00, 0x2D,    // Profile version (little endian 45)
+		14,         // Header size
+		0x10,       // Protocol version
+		0x00, 0x2D, // Profile version (little endian 45)
 		0x00, 0x00, 0x00, 0x00, // Data size (4 bytes, will be updated later)
 		'.', 'F', 'I', 'T', // ".FIT" data type
 		0x00, 0x00, // Header CRC (will be calculated later)
@@ -102,13 +102,13 @@ func (e *FitEncoder) Close() error {
 
 	// Recalculate header CRC with original data
 	header := []byte{
-		14,            // Header size
-		0x10,          // Protocol version
-		0x00, 0x2D,    // Profile version
+		14,         // Header size
+		0x10,       // Protocol version
+		0x00, 0x2D, // Profile version
 		dataSizeBytes[0], dataSizeBytes[1], dataSizeBytes[2], dataSizeBytes[3],
 		'.', 'F', 'I', 'T', // ".FIT" data type
 	}
-	
+
 	// Calculate header CRC with clean state
 	e.crc = 0
 	e.updateCRC(header)

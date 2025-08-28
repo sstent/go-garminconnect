@@ -3,137 +3,123 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"time"
 
-	"golang.org/x/time/rate"
+	"github.com/go-resty/resty/v2"
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 )
 
-const BaseURL = "https://connect.garmin.com/modern/proxy"
-
-// Client handles communication with the Garmin Connect API
 type Client struct {
-	baseURL    *url.URL
-	httpClient *http.Client
-	limiter    *rate.Limiter
-	logger     Logger
-	token      string
+	HTTPClient  *resty.Client
+	sessionPath string
+	session     *garth.Session
 }
 
-// NewClient creates a new API client
-func NewClient(token string) (*Client, error) {
-	u, err := url.Parse(BaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid base URL: %w", err)
+// NewClient creates a new API client with session management
+func NewClient(session *garth.Session, sessionPath string) (*Client, error) {
+	if session == nil {
+		return nil, errors.New("session is required")
 	}
 
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	client := resty.New()
+	client.SetTimeout(30 * time.Second)
+	client.SetHeader("Authorization", "Bearer "+session.OAuth2Token)
+	client.SetHeader("User-Agent", "go-garminconnect/1.0")
+	client.SetHeader("Content-Type", "application/json")
+	client.SetHeader("Accept", "application/json")
 
 	return &Client{
-		baseURL:    u,
-		httpClient: httpClient,
-		limiter:    rate.NewLimiter(rate.Every(time.Second/10), 10), // 10 requests per second
-		logger:     &stdLogger{},
-		token:      token,
+		HTTPClient:  client,
+		sessionPath: sessionPath,
+		session:     session,
 	}, nil
 }
 
-// SetLogger sets the client's logger
-func (c *Client) SetLogger(logger Logger) {
-	c.logger = logger
-}
-
-// SetRateLimit configures the rate limiter
-func (c *Client) SetRateLimit(interval time.Duration, burst int) {
-	c.limiter = rate.NewLimiter(rate.Every(interval), burst)
-}
-
-// setAuthHeaders adds authorization headers to requests
-func (c *Client) setAuthHeaders(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("User-Agent", "go-garminconnect/1.0")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-}
-
-// doRequest executes API requests with rate limiting and authentication
-func (c *Client) doRequest(ctx context.Context, method, path string, body io.Reader, v interface{}) error {
-	// Wait for rate limiter
-	if err := c.limiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limit wait failed: %w", err)
+// Get performs a GET request with automatic token refresh
+func (c *Client) Get(ctx context.Context, path string, v interface{}) error {
+	// Refresh token if needed
+	if err := c.refreshTokenIfNeeded(); err != nil {
+		return err
 	}
 
-	// Build full URL
-	fullURL := c.baseURL.ResolveReference(&url.URL{Path: path}).String()
+	resp, err := c.HTTPClient.R().
+		SetContext(ctx).
+		SetResult(v).
+		Get(path)
 
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return fmt.Errorf("create request failed: %w", err)
+		return err
 	}
 
-	// Add authentication headers
-	c.setAuthHeaders(req)
-
-	// Execute request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+	if resp.StatusCode() == http.StatusUnauthorized {
+		// Force token refresh on next attempt
+		c.session = nil
+		return errors.New("token expired, please reauthenticate")
 	}
-	defer resp.Body.Close()
 
-	// Handle error responses
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode() >= 400 {
 		return handleAPIError(resp)
 	}
 
-	// Parse successful response
-	if v == nil {
+	return nil
+}
+
+// Post performs a POST request
+func (c *Client) Post(ctx context.Context, path string, body interface{}, v interface{}) error {
+	resp, err := c.HTTPClient.R().
+		SetContext(ctx).
+		SetBody(body).
+		SetResult(v).
+		Post(path)
+
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode() >= 400 {
+		return handleAPIError(resp)
+	}
+
+	return nil
+}
+
+// refreshTokenIfNeeded refreshes the token if expired
+func (c *Client) refreshTokenIfNeeded() error {
+	if c.session == nil || !c.session.IsExpired() {
 		return nil
 	}
 
-	return json.NewDecoder(resp.Body).Decode(v)
+	if c.sessionPath == "" {
+		return errors.New("session path not configured for refresh")
+	}
+
+	session, err := garth.LoadSession(c.sessionPath)
+	if err != nil {
+		return fmt.Errorf("failed to load session for refresh: %w", err)
+	}
+
+	if session.IsExpired() {
+		return errors.New("session expired, please reauthenticate")
+	}
+
+	c.session = session
+	c.HTTPClient.SetHeader("Authorization", "Bearer "+session.OAuth2Token)
+	return nil
 }
 
 // handleAPIError processes non-200 responses
-func handleAPIError(resp *http.Response) error {
+func handleAPIError(resp *resty.Response) error {
 	errorResponse := struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	}{}
 
-	if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err == nil {
+	if err := json.Unmarshal(resp.Body(), &errorResponse); err == nil {
 		return fmt.Errorf("API error %d: %s", errorResponse.Code, errorResponse.Message)
 	}
 
-	return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
 }
-
-// Get performs a GET request
-func (c *Client) Get(ctx context.Context, path string, v interface{}) error {
-	return c.doRequest(ctx, http.MethodGet, path, nil, v)
-}
-
-// Post performs a POST request
-func (c *Client) Post(ctx context.Context, path string, body io.Reader, v interface{}) error {
-	return c.doRequest(ctx, http.MethodPost, path, body, v)
-}
-
-// Logger defines the logging interface
-type Logger interface {
-	Debugf(format string, args ...interface{})
-	Infof(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
-}
-
-// stdLogger is the default logger
-type stdLogger struct{}
-
-func (l *stdLogger) Debugf(format string, args ...interface{}) {}
-func (l *stdLogger) Infof(format string, args ...interface{})  {}
-func (l *stdLogger) Errorf(format string, args ...interface{}) {}

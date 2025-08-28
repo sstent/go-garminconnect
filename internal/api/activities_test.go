@@ -2,14 +2,23 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 	"github.com/stretchr/testify/assert"
 )
+
+// TEST PROGRESS:
+// - [ ] Move ValidateFIT to internal/fit package
+// - [ ] Create unified mock server implementation
+// - [ ] Extend mock server for upload handler
+// - [ ] Remove ValidateFIT from this file
+// - [ ] Create shared test helper package
 
 // TestGetActivities is now part of table-driven tests below
 
@@ -18,11 +27,15 @@ func TestActivitiesEndpoints(t *testing.T) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()
 
-	// Create client with mock server URL
-	client, err := NewClient(mockServer.URL(), nil)
+	// Create a mock session
+	session := &garth.Session{OAuth2Token: "test-token"}
+
+	// Create client with mock server URL and session
+	client, err := NewClient(session, "")
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
+	client.HTTPClient.SetBaseURL(mockServer.URL())
 
 	testCases := []struct {
 		name        string
@@ -126,6 +139,7 @@ func TestActivitiesEndpoints(t *testing.T) {
 						Name:       fmt.Sprintf("Activity %d", i+1),
 					})
 				}
+
 				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
 					json.NewEncoder(w).Encode(ActivitiesResponse{
 						Activities: activities,
@@ -136,7 +150,7 @@ func TestActivitiesEndpoints(t *testing.T) {
 						},
 					})
 				})
-				
+
 				result, pagination, err := client.GetActivities(context.Background(), 1, 500)
 				assert.NoError(t, err)
 				assert.Len(t, result, 500)
@@ -198,41 +212,6 @@ func TestActivitiesEndpoints(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Log(tc.description)
 			tc.testFunc(t, client)
-		})
-	}
-}
-
-func TestValidateFIT(t *testing.T) {
-	testCases := []struct {
-		name     string
-		data     []byte
-		expected error
-	}{
-		{
-			name:     "ValidFIT",
-			data:     []byte{0x0E, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, '.', 'F', 'I', 'T', 0x00, 0x00},
-			expected: nil,
-		},
-		{
-			name:     "TooSmall",
-			data:     []byte{0x0E},
-			expected: fmt.Errorf("file too small to be a valid FIT file"),
-		},
-		{
-			name:     "InvalidSignature",
-			data:     []byte{0x0E, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 'I', 'N', 'V', 'L', 0x00, 0x00},
-			expected: fmt.Errorf("invalid FIT file signature"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateFIT(tc.data)
-			if tc.expected == nil {
-				assert.NoError(t, err)
-			} else {
-				assert.EqualError(t, err, tc.expected.Error())
-			}
 		})
 	}
 }

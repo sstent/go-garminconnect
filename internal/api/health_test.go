@@ -14,11 +14,11 @@ import (
 func BenchmarkGetSleepData(b *testing.B) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	
+
 	// Setup successful response
 	mockResponse := map[string]interface{}{
 		"date":     testDate,
@@ -47,11 +47,11 @@ func BenchmarkGetSleepData(b *testing.B) {
 func BenchmarkGetHRVData(b *testing.B) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	
+
 	// Setup successful response
 	mockResponse := map[string]interface{}{
 		"date":         testDate,
@@ -75,11 +75,11 @@ func BenchmarkGetHRVData(b *testing.B) {
 func BenchmarkGetBodyBatteryData(b *testing.B) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	
+
 	// Setup successful response
 	mockResponse := map[string]interface{}{
 		"date":    testDate,
@@ -103,7 +103,7 @@ func BenchmarkGetBodyBatteryData(b *testing.B) {
 func TestGetSleepData(t *testing.T) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	tests := []struct {
 		name          string
 		date          time.Time
@@ -191,7 +191,7 @@ func TestGetSleepData(t *testing.T) {
 func TestGetHRVData(t *testing.T) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	tests := []struct {
 		name          string
 		date          time.Time
@@ -211,9 +211,9 @@ func TestGetHRVData(t *testing.T) {
 			},
 			mockStatus: http.StatusOK,
 			expected: &HRVData{
-				Date:        now.Truncate(24 * time.Hour),
-				RestingHrv:  65.0,
-				WeeklyAvg:   62.0,
+				Date:         now.Truncate(24 * time.Hour),
+				RestingHrv:   65.0,
+				WeeklyAvg:    62.0,
 				LastNightAvg: 68.0,
 			},
 		},
@@ -255,7 +255,7 @@ func TestGetHRVData(t *testing.T) {
 func TestGetBodyBatteryData(t *testing.T) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	tests := []struct {
 		name          string
 		date          time.Time

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
-	
+
 	"github.com/joho/godotenv"
 	"github.com/sstent/go-garminconnect/internal/api"
-	"github.com/sstent/go-garminconnect/internal/auth"
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 )
 
 func main() {
@@ -25,21 +28,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up authentication client with headless mode enabled
-	client := auth.NewAuthClient()
-	token, err := client.Authenticate(
-		context.Background(),
-		os.Getenv("GARMIN_USERNAME"),
-		os.Getenv("GARMIN_PASSWORD"),
-		"", // MFA token if needed
-	)
-	if err != nil {
-		fmt.Printf("Authentication failed: %v\n", err)
-		os.Exit(1)
+	// Configure session persistence
+	sessionPath := filepath.Join(os.Getenv("HOME"), ".garmin", "session.json")
+	authClient := garth.NewAuthenticator("https://connect.garmin.com", sessionPath)
+
+	// Implement CLI prompter
+	authClient.MFAPrompter = ConsolePrompter{}
+
+	// Try to load existing session
+	var session *garth.Session
+	var err error
+	if _, err = os.Stat(sessionPath); err == nil {
+		session, err = garth.LoadSession(sessionPath)
+		if err != nil {
+			fmt.Printf("Session loading failed: %v\n", err)
+		}
 	}
 
-	// Create API client
-	apiClient, err := api.NewClient(token.AccessToken)
+	// Perform authentication if no valid session
+	if session == nil {
+		username, password := getCredentials()
+		session, err = authClient.Login(username, password)
+		if err != nil {
+			fmt.Printf("Authentication failed: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Create API client with session management
+	apiClient, err := api.NewClient(session, sessionPath)
 	if err != nil {
 		fmt.Printf("Failed to create API client: %v\n", err)
 		os.Exit(1)
@@ -71,4 +88,26 @@ func main() {
 			entry.Hydration,
 		)
 	}
+}
+
+// getCredentials prompts for username and password
+func getCredentials() (string, string) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter Garmin username: ")
+	username, _ := reader.ReadString('\n')
+	fmt.Print("Enter Garmin password: ")
+	password, _ := reader.ReadString('\n')
+	return strings.TrimSpace(username), strings.TrimSpace(password)
+}
+
+// ConsolePrompter implements MFAPrompter for CLI
+type ConsolePrompter struct{}
+
+func (c ConsolePrompter) GetMFACode(ctx context.Context) (string, error) {
+	fmt.Print("Enter Garmin MFA code: ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		return scanner.Text(), nil
+	}
+	return "", scanner.Err()
 }

@@ -15,12 +15,12 @@ type MockServer struct {
 	mu     sync.Mutex
 
 	// Endpoint handlers
-	activitiesHandler   http.HandlerFunc
+	activitiesHandler      http.HandlerFunc
 	activityDetailsHandler http.HandlerFunc
-	uploadHandler       http.HandlerFunc
-	userHandler         http.HandlerFunc
-	healthHandler       http.HandlerFunc
-	authHandler         http.HandlerFunc
+	uploadHandler          http.HandlerFunc
+	userHandler            http.HandlerFunc
+	healthHandler          http.HandlerFunc
+	authHandler            http.HandlerFunc
 }
 
 // NewMockServer creates a new mock Garmin Connect server
@@ -65,6 +65,13 @@ func (m *MockServer) SetActivitiesHandler(handler http.HandlerFunc) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.activitiesHandler = handler
+}
+
+// SetUploadHandler sets a custom handler for upload endpoint
+func (m *MockServer) SetUploadHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.uploadHandler = handler
 }
 
 // Default handler implementations would follow for each endpoint

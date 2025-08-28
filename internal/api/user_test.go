@@ -22,31 +22,31 @@ func TestGetUserProfile(t *testing.T) {
 		{
 			name: "successful profile retrieval",
 			mockResponse: map[string]interface{}{
-				"displayName":      "John Doe",
-				"fullName":         "John Michael Doe",
-				"emailAddress":     "john.doe@example.com",
-				"username":         "johndoe",
-				"profileId":        "123456",
+				"displayName":          "John Doe",
+				"fullName":             "John Michael Doe",
+				"emailAddress":         "john.doe@example.com",
+				"username":             "johndoe",
+				"profileId":            "123456",
 				"profileImageUrlLarge": "https://example.com/profile.jpg",
-				"location":         "San Francisco, CA",
-				"fitnessLevel":     "INTERMEDIATE",
-				"height":           180.0,
-				"weight":           75.0,
-				"birthDate":        "1985-01-01",
+				"location":             "San Francisco, CA",
+				"fitnessLevel":         "INTERMEDIATE",
+				"height":               180.0,
+				"weight":               75.0,
+				"birthDate":            "1985-01-01",
 			},
 			mockStatus: http.StatusOK,
 			expected: &UserProfile{
-				DisplayName:   "John Doe",
-				FullName:      "John Michael Doe",
-				EmailAddress:  "john.doe@example.com",
-				Username:      "johndoe",
-				ProfileID:     "123456",
-				ProfileImage:  "https://example.com/profile.jpg",
-				Location:      "San Francisco, CA",
-				FitnessLevel:  "INTERMEDIATE",
-				Height:        180.0,
-				Weight:        75.0,
-				Birthdate:     "1985-01-01",
+				DisplayName:  "John Doe",
+				FullName:     "John Michael Doe",
+				EmailAddress: "john.doe@example.com",
+				Username:     "johndoe",
+				ProfileID:    "123456",
+				ProfileImage: "https://example.com/profile.jpg",
+				Location:     "San Francisco, CA",
+				FitnessLevel: "INTERMEDIATE",
+				Height:       180.0,
+				Weight:       75.0,
+				Birthdate:    "1985-01-01",
 			},
 		},
 		{
@@ -109,20 +109,20 @@ func BenchmarkGetUserProfile(b *testing.B) {
 	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	
+
 	// Setup successful response
 	mockResponse := map[string]interface{}{
-		"displayName":      "Benchmark User",
-		"fullName":         "Benchmark User Full",
-		"emailAddress":     "benchmark@example.com",
-		"username":         "benchmark",
-		"profileId":        "benchmark-123",
+		"displayName":          "Benchmark User",
+		"fullName":             "Benchmark User Full",
+		"emailAddress":         "benchmark@example.com",
+		"username":             "benchmark",
+		"profileId":            "benchmark-123",
 		"profileImageUrlLarge": "https://example.com/benchmark.jpg",
-		"location":         "Benchmark City",
-		"fitnessLevel":     "ADVANCED",
-		"height":           185.0,
-		"weight":           80.0,
-		"birthDate":        "1990-01-01",
+		"location":             "Benchmark City",
+		"fitnessLevel":         "ADVANCED",
+		"height":               185.0,
+		"weight":               80.0,
+		"birthDate":            "1990-01-01",
 	}
 	mockServer.SetResponse("/userprofile-service/socialProfile", http.StatusOK, mockResponse)
 
@@ -139,19 +139,19 @@ func BenchmarkGetUserProfile(b *testing.B) {
 func BenchmarkGetUserStats(b *testing.B) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	
+
 	// Setup successful response
 	mockResponse := map[string]interface{}{
-		"totalSteps":     15000,
-		"totalDistance":  12000.0,
-		"totalCalories":  3000,
-		"activeMinutes":  60,
+		"totalSteps":       15000,
+		"totalDistance":    12000.0,
+		"totalCalories":    3000,
+		"activeMinutes":    60,
 		"restingHeartRate": 50,
-		"date":           testDate,
+		"date":             testDate,
 	}
 	path := fmt.Sprintf("/stats-service/stats/daily/%s", now.Format("2006-01-02"))
 	mockServer.SetResponse(path, http.StatusOK, mockResponse)
@@ -168,7 +168,7 @@ func BenchmarkGetUserStats(b *testing.B) {
 func TestGetUserStats(t *testing.T) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
-	
+
 	// Define test cases
 	tests := []struct {
 		name          string
@@ -182,12 +182,12 @@ func TestGetUserStats(t *testing.T) {
 			name: "successful stats retrieval",
 			date: now,
 			mockResponse: map[string]interface{}{
-				"totalSteps":     10000,
-				"totalDistance":  8500.5,
-				"totalCalories":  2200,
-				"activeMinutes":  45,
+				"totalSteps":       10000,
+				"totalDistance":    8500.5,
+				"totalCalories":    2200,
+				"activeMinutes":    45,
 				"restingHeartRate": 55,
-				"date":           testDate,
+				"date":             testDate,
 			},
 			mockStatus: http.StatusOK,
 			expected: &UserStats{

@@ -27,7 +27,7 @@ func MFAHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Invalid MFA code format. Please enter a 6-digit code."))
 			return
 		}
-		
+
 		// Store MFA verification status in session
 		// In a real app, we'd store this in a session store
 		w.Write([]byte("MFA verification successful! Please return to your application."))
