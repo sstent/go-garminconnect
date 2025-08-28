@@ -8,109 +8,294 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 )
 
+// Enable debug logging based on environment variable
+func debugEnabled() bool {
+	return os.Getenv("DEBUG_AUTH") == "true"
+}
+
+// debugLog prints debug messages if debugging is enabled
+func debugLog(format string, args ...interface{}) {
+	if debugEnabled() {
+		fmt.Printf("[DEBUG] "+format+"\n", args...)
+	}
+}
+
+// fetchLoginParams retrieves required tokens from Garmin login page
+func (c *AuthClient) fetchLoginParams(ctx context.Context) (lt, execution string, err error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://sso.garmin.com/sso/signin?service=https://connect.garmin.com", nil)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create login page request: %w", err)
+	}
+
+	req.Header = getBrowserHeaders()
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("login page request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read login page response: %w", err)
+	}
+
+	// For debugging: Log response status and headers
+	debugLog("Login page response status: %s", resp.Status)
+	debugLog("Login page response headers: %v", resp.Header)
+	
+	// Write body to debug log if it's not too large
+	if len(body) < 5000 {
+		debugLog("Login page body: %s", body)
+	} else {
+		debugLog("Login page body too large to log (%d bytes)", len(body))
+	}
+
+	lt, err = extractParam(`name="lt"\s+value="([^"]+)"`, string(body))
+	if err != nil {
+		return "", "", fmt.Errorf("lt param not found: %w", err)
+	}
+
+	execution, err = extractParam(`name="execution"\s+value="([^"]+)"`, string(body))
+	if err != nil {
+		return "", "", fmt.Errorf("execution param not found: %w", err)
+	}
+
+	return lt, execution, nil
+}
+
+// extractParam helper to extract regex pattern
+func extractParam(pattern, body string) (string, error) {
+	re := regexp.MustCompile(pattern)
+	matches := re.FindStringSubmatch(body)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("pattern not found")
+	}
+	return matches[1], nil
+}
+
+// getBrowserHeaders returns browser-like headers for requests
+func getBrowserHeaders() http.Header {
+	return http.Header{
+		"User-Agent":      {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
+		"Accept":          {"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"},
+		"Accept-Language": {"en-US,en;q=0.9"},
+		"Accept-Encoding": {"gzip, deflate, br"},
+		"Connection":      {"keep-alive"},
+		"Cache-Control":   {"max-age=0"},
+		"Sec-Fetch-Site":  {"none"},
+		"Sec-Fetch-Mode":  {"navigate"},
+		"Sec-Fetch-User":  {"?1"},
+		"Sec-Fetch-Dest":  {"document"},
+		"DNT":             {"1"},
+		"Upgrade-Insecure-Requests": {"1"},
+	}
+}
+
 // Authenticate handles Garmin Connect authentication with MFA support
 func (c *AuthClient) Authenticate(ctx context.Context, username, password, mfaToken string) (*Token, error) {
-	// Create login form data
+	// Fetch required tokens from login page
+	lt, execution, err := c.fetchLoginParams(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get login params: %w", err)
+	}
+
+	// Create login form data with required parameters
+	data := url.Values{}
+	data.Set("username", username)
+	data.Set("password", password)
+	data.Set("embed", "true")
+	data.Set("rememberme", "on")
+	data.Set("lt", lt)
+	data.Set("execution", execution)
+	data.Set("_eventId", "submit")
+	data.Set("geolocation", "")
+	data.Set("clientId", "GarminConnect")
+	data.Set("service", "https://connect.garmin.com")
+	data.Set("webhost", "https://connect.garmin.com")
+	data.Set("fromPage", "oauth")
+	data.Set("locale", "en_US")
+	data.Set("id", "gauth-widget")
+	data.Set("redirectAfterAccountLoginUrl", "https://connect.garmin.com/oauthConfirm")
+	data.Set("redirectAfterAccountCreationUrl", "https://connect.garmin.com/oauthConfirm")
+
+	// Create login request
+	loginURL := "https://sso.garmin.com/sso/signin"
+	req, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSO request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+	// Key change: Request JSON response instead of HTML
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Cache-Control", "max-age=0")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-User", "?1")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+
+	// Log request details if debugging
+	debugLog("Sending SSO request to: %s", loginURL)
+	debugLog("Request headers: %v", req.Header)
+
+	// Send SSO request
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("SSO request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Log response details
+	debugLog("SSO response status: %s", resp.Status)
+	debugLog("Response headers: %v", resp.Header)
+
+	// Check for MFA requirement
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		if mfaToken == "" {
+			return nil, errors.New("MFA required but no token provided")
+		}
+		return c.handleMFA(ctx, username, password, mfaToken, "")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("authentication failed with status: %d", resp.StatusCode)
+	}
+
+	// Parse JSON response to get ticket
+	var authResponse struct {
+		Ticket string `json:"ticket"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse SSO response: %w", err)
+	}
+
+	if authResponse.Ticket == "" {
+		return nil, errors.New("empty ticket in SSO response")
+	}
+
+	// Exchange ticket for tokens
+	return c.exchangeTicketForTokens(ctx, authResponse.Ticket)
+}
+// extractSSOTicket finds the authentication ticket in the SSO response
+func extractSSOTicket(body string) (string, error) {
+	// The ticket is typically in a hidden input field
+	ticketPattern := `name="ticket"\s+value="([^"]+)"`
+	re := regexp.MustCompile(ticketPattern)
+	matches := re.FindStringSubmatch(body)
+	
+	if len(matches) < 2 {
+		if strings.Contains(body, "Cloudflare") {
+		return "", errors.New("Cloudflare bot protection triggered")
+	}
+	return "", errors.New("ticket not found in SSO response")
+	}
+	return matches[1], nil
+}
+
+// handleMFA processes multi-factor authentication
+func (c *AuthClient) handleMFA(ctx context.Context, username, password, mfaToken, responseBody string) (*Token, error) {
+	// Extract required parameters from the initial response
+	params, err := extractMFAParams(responseBody)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare MFA request
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
 	data.Set("embed", "false")
 	data.Set("rememberme", "on")
+	data.Set("_eventId", "submit")
+	data.Set("mfaCode", mfaToken)
 
-	// Create login request
-	loginURL := fmt.Sprintf("%s%s", c.BaseURL, c.LoginPath)
+	// Add all parameters from the initial response
+	for key, value := range params {
+		data.Set(key, value)
+	}
+
+	// Create MFA request
+	loginURL := "https://sso.garmin.com/sso/signin"
 	req, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create login request: %w", err)
+		return nil, fmt.Errorf("failed to create MFA request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; go-garminconnect/1.0)")
 
-	// Send login request
+	// Send MFA request
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("login request failed: %w", err)
+		return nil, fmt.Errorf("MFA request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check if MFA is required
-	if resp.StatusCode == http.StatusUnauthorized {
-		// Parse MFA response
-		var mfaResponse struct {
-			MFAToken string `json:"mfaToken"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&mfaResponse); err != nil {
-			return nil, fmt.Errorf("failed to parse MFA response: %w", err)
-		}
-
-		// Validate MFA token
-		if mfaToken == "" {
-			return nil, errors.New("MFA required but no token provided")
-		}
-
-		// Create MFA verification request
-		mfaData := url.Values{}
-		mfaData.Set("token", mfaResponse.MFAToken)
-		mfaData.Set("rememberme", "on")
-		mfaData.Set("mfaCode", mfaToken)
-
-		req, err := http.NewRequestWithContext(ctx, "POST", loginURL, strings.NewReader(mfaData.Encode()))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create MFA request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; go-garminconnect/1.0)")
-
-		// Send MFA request
-		resp, err = c.Client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("MFA request failed: %w", err)
-		}
-		defer resp.Body.Close()
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MFA response: %w", err)
 	}
 
-	// Handle non-200 responses
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("authentication failed: %d\n%s", resp.StatusCode, body)
+	// Extract ticket from MFA response
+	ticket, err := extractSSOTicket(string(body))
+	if err != nil {
+		return nil, fmt.Errorf("ticket not found in MFA response: %w", err)
 	}
 
-	// Parse response cookies to get tokens
-	var token Token
-	cookies := resp.Cookies()
-	for _, cookie := range cookies {
-		if cookie.Name == "access_token" {
-			token.AccessToken = cookie.Value
-		} else if cookie.Name == "refresh_token" {
-			token.RefreshToken = cookie.Value
-		}
-	}
-
-	// Validate tokens
-	if token.AccessToken == "" || token.RefreshToken == "" {
-		return nil, errors.New("tokens not found in authentication response")
-	}
-
-	// Set expiration time
-	token.Expiry = time.Now().Add(time.Duration(3600) * time.Second)
-	token.ExpiresIn = 3600
-	token.TokenType = "Bearer"
-
-	return &token, nil
+	// Exchange ticket for tokens
+	return c.exchangeTicketForTokens(ctx, ticket)
 }
 
-// RefreshToken exchanges a refresh token for a new access token
-func (c *AuthClient) RefreshToken(ctx context.Context, token *Token) (*Token, error) {
-	// Create token refresh data
-	data := url.Values{}
-	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", token.RefreshToken)
+// extractSessionCookie extracts session cookie from headers
+func extractSessionCookie(cookieHeader string) string {
+	sessionPattern := `SESSION=([^;]+)`
+	re := regexp.MustCompile(sessionPattern)
+	matches := re.FindStringSubmatch(cookieHeader)
+	if len(matches) < 2 {
+		return ""
+	}
+	return matches[1]
+}
 
-	// Create refresh token request
+// extractMFAParams extracts necessary parameters for MFA request
+func extractMFAParams(body string) (map[string]string, error) {
+	params := make(map[string]string)
+	patterns := []string{
+		`name="lt"\s+value="([^"]+)"`,
+		`name="execution"\s+value="([^"]+)"`,
+		`name="_eventId"\s+value="([^"]+)"`,
+	}
+
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(body)
+		if len(matches) < 2 {
+			return nil, fmt.Errorf("required parameter not found: %s", pattern)
+		}
+		paramName := re.SubexpNames()[1]
+		params[paramName] = matches[1]
+	}
+
+	return params, nil
+}
+
+// exchangeTicketForTokens exchanges an SSO ticket for access tokens
+func (c *AuthClient) exchangeTicketForTokens(ctx context.Context, ticket string) (*Token, error) {
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", ticket)
+	data.Set("redirect_uri", "https://connect.garmin.com")
+
 	req, err := http.NewRequestWithContext(ctx, "POST", c.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
@@ -118,31 +303,25 @@ func (c *AuthClient) RefreshToken(ctx context.Context, token *Token) (*Token, er
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; go-garminconnect/1.0)")
 
-	// Send refresh token request
+	// Add basic authentication
+	req.SetBasicAuth("garmin-connect", "garmin-connect-secret")
+
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("token refresh failed: %w", err)
+		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Handle non-200 responses
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token refresh failed with status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("token exchange failed: %d %s", resp.StatusCode, body)
 	}
 
-	// Parse token response
-	var newToken Token
-	if err := json.NewDecoder(resp.Body).Decode(&newToken); err != nil {
+	var token Token
+	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
 
-	// Validate token
-	if newToken.AccessToken == "" || newToken.RefreshToken == "" {
-		return nil, errors.New("token response missing required fields")
-	}
-
-	// Set expiration time
-	newToken.Expiry = time.Now().Add(time.Duration(newToken.ExpiresIn) * time.Second)
-
-	return &newToken, nil
+	token.Expiry = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+	return &token, nil
 }

@@ -19,7 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create authentication client
+	// Create authentication client with headless mode enabled
 	authClient := auth.NewAuthClient()
 
 	// Authenticate with credentials

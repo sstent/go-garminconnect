@@ -2,25 +2,25 @@ package auth
 
 import (
 	"net/http"
+	"net/http/cookiejar"
 	"time"
 )
 
-// AuthClient handles authentication with Garmin Connect
+// AuthClient struct handles authentication
 type AuthClient struct {
-	BaseURL   string
-	LoginPath string
-	TokenURL  string
-	Client    *http.Client
+	Client   *http.Client
+	TokenURL string
 }
 
-// NewAuthClient creates a new authentication client
+// NewAuthClient creates a new authentication client with cookie persistence
 func NewAuthClient() *AuthClient {
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{
+		Jar:     jar,
+		Timeout: 30 * time.Second,
+	}
 	return &AuthClient{
-		BaseURL:   "https://connect.garmin.com",
-		LoginPath: "/signin",
-		TokenURL:  "https://connect.garmin.com/oauth/token",
-		Client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		Client:   client,
+		TokenURL: "https://connectapi.garmin.com/oauth-service/oauth/exchange/user/2.0",
 	}
 }

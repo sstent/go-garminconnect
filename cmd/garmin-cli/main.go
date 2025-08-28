@@ -5,19 +5,27 @@ import (
 	"fmt"
 	"os"
 	"time"
-
+	
+	"github.com/joho/godotenv"
 	"github.com/sstent/go-garminconnect/internal/api"
 	"github.com/sstent/go-garminconnect/internal/auth"
 )
 
 func main() {
-	// Verify required environment variables
+	// Try to load from .env if environment variables not set
 	if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
-		fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set")
+		if err := godotenv.Load(); err != nil {
+			fmt.Println("Failed to load .env file:", err)
+		}
+	}
+
+	// Verify required credentials
+	if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
+		fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set in environment or .env file")
 		os.Exit(1)
 	}
 
-	// Set up authentication client
+	// Set up authentication client with headless mode enabled
 	client := auth.NewAuthClient()
 	token, err := client.Authenticate(
 		context.Background(),
