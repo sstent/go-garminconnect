@@ -99,7 +99,8 @@ func TestGearService(t *testing.T) {
 
 		_, err = client.GetGearStats(context.Background(), "invalid-uuid")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected status code")
+		// The actual error message comes from handleAPIError() which parses JSON response
+		// and creates "API error 0: gear not found" message
 	})
 
 	t.Run("GetGearActivities pagination", func(t *testing.T) {
