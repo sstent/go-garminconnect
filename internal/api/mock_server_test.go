@@ -2,18 +2,21 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 )
 
 // MockServer simulates the Garmin Connect API
 type MockServer struct {
 	server *httptest.Server
 	mu     sync.Mutex
-
+	
 	// Endpoint handlers
 	activitiesHandler      http.HandlerFunc
 	activityDetailsHandler http.HandlerFunc
@@ -21,31 +24,53 @@ type MockServer struct {
 	userHandler            http.HandlerFunc
 	healthHandler          http.HandlerFunc
 	authHandler            http.HandlerFunc
+	
+	// Request counters
+	requestCounters map[string]int
 }
 
 // NewMockServer creates a new mock Garmin Connect server
 func NewMockServer() *MockServer {
-	m := &MockServer{}
+	m := &MockServer{
+		requestCounters: make(map[string]int),
+	}
 	m.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 
+		// Track request count
+		if m.requestCounters == nil {
+			m.requestCounters = make(map[string]int)
+		}
+		endpointType := "unknown"
+		path := r.URL.Path
 		switch {
-		case strings.HasPrefix(r.URL.Path, "/activity-service/activities"):
+		case strings.HasPrefix(path, "/activitylist-service/activities/search") || path == "/activitylist-service/activities":
+			endpointType = "activities"
 			m.handleActivities(w, r)
-		case strings.HasPrefix(r.URL.Path, "/activity-service/activity/"):
+		case strings.HasPrefix(path, "/activity-service/activities") || path == "/activity-service/activities":
+			endpointType = "activities"
+			m.handleActivities(w, r)
+		case strings.HasPrefix(path, "/activity-service/activity/"):
+			endpointType = "activityDetails"
 			m.handleActivityDetails(w, r)
-		case strings.HasPrefix(r.URL.Path, "/upload-service/upload"):
+		case strings.HasPrefix(path, "/upload-service/upload") || path == "/upload-service/upload":
+			endpointType = "upload"
 			m.handleUpload(w, r)
-		case strings.HasPrefix(r.URL.Path, "/user-service/user"):
+		case strings.HasPrefix(path, "/user-service/user") || path == "/user-service/user":
+			endpointType = "user"
 			m.handleUserData(w, r)
-		case strings.HasPrefix(r.URL.Path, "/health-service"):
+		case strings.HasPrefix(path, "/health-service") || path == "/health-service":
+			endpointType = "health"
 			m.handleHealthData(w, r)
-		case strings.HasPrefix(r.URL.Path, "/auth"):
+		case strings.HasPrefix(path, "/auth") || path == "/auth":
+			endpointType = "auth"
 			m.handleAuth(w, r)
 		default:
+			endpointType = "unknown"
 			http.Error(w, "Not found", http.StatusNotFound)
 		}
+		m.requestCounters[endpointType]++
 	}))
 	return m
 }
@@ -72,6 +97,82 @@ func (m *MockServer) SetUploadHandler(handler http.HandlerFunc) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.uploadHandler = handler
+}
+
+// SetActivityDetailsHandler sets a custom handler for activity details endpoint
+func (m *MockServer) SetActivityDetailsHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.activityDetailsHandler = handler
+}
+
+// SetUserHandler sets a custom handler for user endpoint
+func (m *MockServer) SetUserHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.userHandler = handler
+}
+
+// SetHealthHandler sets a custom handler for health endpoint
+func (m *MockServer) SetHealthHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.healthHandler = handler
+}
+
+// SetAuthHandler sets a custom handler for auth endpoint
+func (m *MockServer) SetAuthHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.authHandler = handler
+}
+
+// Reset resets all handlers and counters to default state
+func (m *MockServer) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.activitiesHandler = nil
+	m.activityDetailsHandler = nil
+	m.uploadHandler = nil
+	m.userHandler = nil
+	m.healthHandler = nil
+	m.authHandler = nil
+	m.requestCounters = make(map[string]int)
+}
+
+// RequestCount returns the number of requests made to a specific endpoint
+func (m *MockServer) RequestCount(endpoint string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.requestCounters[endpoint]
+}
+
+// SetResponse sets a standardized response for a specific endpoint
+func (m *MockServer) SetResponse(endpoint string, status int, body interface{}) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(body)
+	}
+
+	switch endpoint {
+	case "activities":
+		m.SetActivitiesHandler(handler)
+	case "activityDetails":
+		m.SetActivityDetailsHandler(handler)
+	case "upload":
+		m.SetUploadHandler(handler)
+	case "user":
+		m.SetUserHandler(handler)
+	case "health":
+		m.SetHealthHandler(handler)
+	case "auth":
+		m.SetAuthHandler(handler)
+	}
+}
+
+// SetErrorResponse configures an error response for a specific endpoint
+func (m *MockServer) SetErrorResponse(endpoint string, status int, message string) {
+	m.SetResponse(endpoint, status, map[string]string{"error": message})
 }
 
 // Default handler implementations would follow for each endpoint
@@ -187,10 +288,39 @@ func (m *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		m.authHandler(w, r)
 		return
 	}
+
+	// Handle session refresh requests
+	if strings.Contains(r.URL.Path, "/refresh") {
+		// Validate refresh token and return new access token
+		response := map[string]interface{}{
+			"oauth2_token": "new-mock-token",
+			"expires_in":   3600,
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
 	// Simulate successful authentication
 	response := map[string]interface{}{
-		"token": "mock-token-123",
+		"oauth2_token": "mock-access-token",
+		"refresh_token": "mock-refresh-token",
+		"expires_in":   3600,
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// NewClientWithBaseURL creates a test client that uses the mock server's URL
+func NewClientWithBaseURL(baseURL string) *Client {
+	session := &garth.Session{
+		OAuth2Token: "mock-token",
+		ExpiresAt:   time.Now().Add(8 * time.Hour),
+	}
+	client, err := NewClient(session, "")
+	if err != nil {
+		panic("failed to create test client: " + err.Error())
+	}
+	client.HTTPClient.SetBaseURL(baseURL)
+	return client
 }

@@ -80,7 +80,7 @@ func TestGetUserProfile(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,7 +127,7 @@ func BenchmarkGetUserProfile(b *testing.B) {
 	mockServer.SetResponse("/userprofile-service/socialProfile", http.StatusOK, mockResponse)
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -157,7 +157,7 @@ func BenchmarkGetUserStats(b *testing.B) {
 	mockServer.SetResponse(path, http.StatusOK, mockResponse)
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -233,7 +233,7 @@ func TestGetUserStats(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

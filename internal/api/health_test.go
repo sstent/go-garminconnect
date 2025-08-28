@@ -2,8 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,23 +20,24 @@ func BenchmarkGetSleepData(b *testing.B) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()
 
-	// Setup successful response
-	mockResponse := map[string]interface{}{
-		"date":     testDate,
-		"duration": 480.0,
-		"quality":  85.0,
-		"sleepStages": map[string]interface{}{
-			"deep":  120.0,
-			"light": 240.0,
-			"rem":   90.0,
-			"awake": 30.0,
-		},
-	}
-	path := fmt.Sprintf("/wellness-service/sleep/daily/%s", now.Format("2006-01-02"))
-	mockServer.SetResponse(path, http.StatusOK, mockResponse)
+	// Setup handler for health endpoint
+	mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"date":     testDate,
+			"duration": 480.0,
+			"quality":  85.0,
+			"sleepStages": map[string]interface{}{
+				"deep":  120.0,
+				"light": 240.0,
+				"rem":   90.0,
+				"awake": 30.0,
+			},
+		})
+	})
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -52,18 +54,19 @@ func BenchmarkGetHRVData(b *testing.B) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()
 
-	// Setup successful response
-	mockResponse := map[string]interface{}{
-		"date":         testDate,
-		"restingHrv":   65.0,
-		"weeklyAvg":    62.0,
-		"lastNightAvg": 68.0,
-	}
-	path := fmt.Sprintf("/hrv-service/hrv/%s", now.Format("2006-01-02"))
-	mockServer.SetResponse(path, http.StatusOK, mockResponse)
+	// Setup handler for health endpoint
+	mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"date":         testDate,
+			"restingHrv":   65.0,
+			"weeklyAvg":    62.0,
+			"lastNightAvg": 68.0,
+		})
+	})
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -80,19 +83,20 @@ func BenchmarkGetBodyBatteryData(b *testing.B) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()
 
-	// Setup successful response
-	mockResponse := map[string]interface{}{
-		"date":    testDate,
-		"charged": 85,
-		"drained": 45,
-		"highest": 95,
-		"lowest":  30,
-	}
-	path := fmt.Sprintf("/bodybattery-service/bodybattery/%s", now.Format("2006-01-02"))
-	mockServer.SetResponse(path, http.StatusOK, mockResponse)
+	// Setup handler for health endpoint
+	mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"date":    testDate,
+			"charged": 85,
+			"drained": 45,
+			"highest": 95,
+			"lowest":  30,
+		})
+	})
 
 	// Create client
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -166,13 +170,20 @@ func TestGetSleepData(t *testing.T) {
 
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer.Reset()
-			path := fmt.Sprintf("/wellness-service/sleep/daily/%s", tt.date.Format("2006-01-02"))
-			mockServer.SetResponse(path, tt.mockStatus, tt.mockResponse)
+			mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+				// Only handle sleep data requests
+				if strings.Contains(r.URL.Path, "sleep/daily") {
+					w.WriteHeader(tt.mockStatus)
+					json.NewEncoder(w).Encode(tt.mockResponse)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
 
 			data, err := client.GetSleepData(context.Background(), tt.date)
 
@@ -230,13 +241,20 @@ func TestGetHRVData(t *testing.T) {
 
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer.Reset()
-			path := fmt.Sprintf("/hrv-service/hrv/%s", tt.date.Format("2006-01-02"))
-			mockServer.SetResponse(path, tt.mockStatus, tt.mockResponse)
+			mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+				// Only handle HRV data requests
+				if strings.Contains(r.URL.Path, "hrv/") {
+					w.WriteHeader(tt.mockStatus)
+					json.NewEncoder(w).Encode(tt.mockResponse)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
 
 			data, err := client.GetHRVData(context.Background(), tt.date)
 
@@ -296,13 +314,20 @@ func TestGetBodyBatteryData(t *testing.T) {
 
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer.Reset()
-			path := fmt.Sprintf("/bodybattery-service/bodybattery/%s", tt.date.Format("2006-01-02"))
-			mockServer.SetResponse(path, tt.mockStatus, tt.mockResponse)
+			mockServer.SetHealthHandler(func(w http.ResponseWriter, r *http.Request) {
+				// Only handle body battery requests
+				if strings.Contains(r.URL.Path, "bodybattery/") {
+					w.WriteHeader(tt.mockStatus)
+					json.NewEncoder(w).Encode(tt.mockResponse)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})
 
 			data, err := client.GetBodyBatteryData(context.Background(), tt.date)
 
