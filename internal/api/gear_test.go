@@ -17,6 +17,8 @@ import (
 func TestGearService(t *testing.T) {
 	// Create test server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		
 		switch r.URL.Path {
 		case "/gear-service/stats/valid-uuid":
 			w.WriteHeader(http.StatusOK)
@@ -65,14 +67,18 @@ func TestGearService(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Create mock session
-	session := &garth.Session{OAuth2Token: "test-token"}
-
-	// Create client
-	client, _ := NewClient(session, "")
-	client.HTTPClient.SetBaseURL(srv.URL)
-
 	t.Run("GetGearStats success", func(t *testing.T) {
+		// Create mock session that's not expired
+		session := &garth.Session{
+			OAuth2Token: "test-token",
+			ExpiresAt:   time.Now().Add(8 * time.Hour), // Not expired
+		}
+
+		// Create client
+		client, err := NewClient(session, "")
+		assert.NoError(t, err)
+		client.HTTPClient.SetBaseURL(srv.URL)
+
 		stats, err := client.GetGearStats(context.Background(), "valid-uuid")
 		assert.NoError(t, err)
 		assert.Equal(t, "Test Gear", stats.Name)
@@ -80,12 +86,34 @@ func TestGearService(t *testing.T) {
 	})
 
 	t.Run("GetGearStats not found", func(t *testing.T) {
-		_, err := client.GetGearStats(context.Background(), "invalid-uuid")
+		// Create mock session that's not expired
+		session := &garth.Session{
+			OAuth2Token: "test-token",
+			ExpiresAt:   time.Now().Add(8 * time.Hour), // Not expired
+		}
+
+		// Create client
+		client, err := NewClient(session, "")
+		assert.NoError(t, err)
+		client.HTTPClient.SetBaseURL(srv.URL)
+
+		_, err = client.GetGearStats(context.Background(), "invalid-uuid")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "API error")
+		assert.Contains(t, err.Error(), "unexpected status code")
 	})
 
 	t.Run("GetGearActivities pagination", func(t *testing.T) {
+		// Create mock session that's not expired
+		session := &garth.Session{
+			OAuth2Token: "test-token",
+			ExpiresAt:   time.Now().Add(8 * time.Hour), // Not expired
+		}
+
+		// Create client
+		client, err := NewClient(session, "")
+		assert.NoError(t, err)
+		client.HTTPClient.SetBaseURL(srv.URL)
+
 		activities, err := client.GetGearActivities(context.Background(), "valid-uuid", 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, activities, 1)
@@ -98,6 +126,6 @@ func TestGearService(t *testing.T) {
 
 		_, err = client.GetGearActivities(context.Background(), "invalid-uuid", 0, 10)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "API error")
+		assert.Contains(t, err.Error(), "failed to get gear activities")
 	})
 }

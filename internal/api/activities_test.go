@@ -15,7 +15,7 @@ import (
 func TestActivitiesEndpoints(t *testing.T) {
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL)
+	client := NewClientWithBaseURL(mockServer.URL())
 
 	tests := []struct {
 		name        string
@@ -26,20 +26,31 @@ func TestActivitiesEndpoints(t *testing.T) {
 			name: "GetActivitiesSuccess",
 			setup: func() {
 				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
-					activities := []ActivityResponse{{
-						ActivityID: 1,
-						Name:       "Morning Run",
-						Type:       "RUNNING",
-						StartTime:  garminTime{time.Now().Add(-24 * time.Hour)},
-						Duration:   3600,
-						Distance:   10.0,
-					}}
+					// Create a properly formatted time string for Garmin format
+					timeStr := time.Now().Add(-24 * time.Hour).Format("2006-01-02T15:04:05")
+					
+					// Create response with raw JSON to avoid time marshaling issues
+					response := map[string]interface{}{
+						"activities": []map[string]interface{}{
+							{
+								"activityId":      1,
+								"activityName":    "Morning Run",
+								"activityType":    "RUNNING", 
+								"startTimeLocal":  timeStr,
+								"duration":        3600.0,
+								"distance":        10.0,
+							},
+						},
+						"pagination": map[string]interface{}{
+							"page":       1,
+							"pageSize":   10,
+							"totalCount": 1,
+						},
+					}
+					
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ActivitiesResponse{
-						Activities: activities,
-						Pagination: Pagination{Page: 1, PageSize: 10, TotalCount: 1},
-					})
+					json.NewEncoder(w).Encode(response)
 				})
 			},
 			testFunc: func(t *testing.T) {
@@ -68,22 +79,25 @@ func TestActivitiesEndpoints(t *testing.T) {
 						return
 					}
 
+					// Use proper time format for Garmin API
+					timeStr := time.Now().Add(-24 * time.Hour).Format("2006-01-02T15:04:05")
+					
+					response := map[string]interface{}{
+						"activityId":      activityID,
+						"activityName":    "Mock Activity",
+						"activityType":    "RUNNING",
+						"startTimeLocal":  timeStr,
+						"duration":        3600.0,
+						"distance":        10.0,
+						"calories":        500.0,
+						"averageHR":       150,
+						"maxHR":           170,
+						"elevationGain":   100.0,
+					}
+
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					json.NewEncoder(w).Encode(ActivityDetailResponse{
-						ActivityResponse: ActivityResponse{
-							ActivityID: activityID,
-							Name:       "Mock Activity",
-							Type:       "RUNNING",
-							StartTime:  garminTime{time.Now().Add(-24 * time.Hour)},
-							Duration:   3600,
-							Distance:   10.0,
-						},
-						Calories:      500,
-						AverageHR:     150,
-						MaxHR:         170,
-						ElevationGain: 100,
-					})
+					json.NewEncoder(w).Encode(response)
 				})
 			},
 			testFunc: func(t *testing.T) {

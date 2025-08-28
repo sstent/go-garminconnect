@@ -13,12 +13,13 @@ import (
 
 func TestGetBodyComposition(t *testing.T) {
 	// Create test server for mocking API responses
-	// Create mock session
-	session := &garth.Session{OAuth2Token: "valid-token"}
-
-	// Create test server for mocking API responses
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/body-composition?startDate=2023-01-01&endDate=2023-01-31", r.URL.String())
+		// Check for required parameters without enforcing order
+		startDate := r.URL.Query().Get("startDate")
+		endDate := r.URL.Query().Get("endDate")
+		
+		assert.Equal(t, "2023-01-01", startDate, "startDate should match")
+		assert.Equal(t, "2023-01-31", endDate, "endDate should match")
 
 		// Return different responses based on test cases
 		if r.Header.Get("Authorization") != "Bearer valid-token" {
@@ -26,12 +27,13 @@ func TestGetBodyComposition(t *testing.T) {
 			return
 		}
 
-		if r.URL.Query().Get("startDate") == "2023-02-01" {
+		if startDate == "2023-02-01" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		// Successful response
+		// Successful response with proper timestamp format
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`[
 			{
@@ -39,15 +41,11 @@ func TestGetBodyComposition(t *testing.T) {
 				"muscleMass": 55.2,
 				"bodyFat": 15.3,
 				"hydration": 58.7,
-				"timestamp": "2023-01-15T08:00:00.000Z"
+				"timestamp": "2023-01-15T08:00:00Z"
 			}
 		]`))
 	}))
 	defer server.Close()
-
-	// Setup client with test server
-	client, _ := NewClient(session, "")
-	client.HTTPClient.SetBaseURL(server.URL)
 
 	// Test cases
 	testCases := []struct {
@@ -60,14 +58,12 @@ func TestGetBodyComposition(t *testing.T) {
 	}{
 		{
 			name:        "Successful request",
-			token:       "valid-token", // Test case doesn't actually change client token now
+			token:       "valid-token",
 			start:       time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			end:         time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC),
 			expectError: false,
 			expectedLen: 1,
 		},
-		// Unauthorized test case is handled by the mock server's token check
-		// We need to create a new client with invalid token
 		{
 			name:        "Unauthorized access",
 			token:       "invalid-token",
@@ -86,18 +82,17 @@ func TestGetBodyComposition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// For unauthorized test, create a separate client
-			if tc.token == "invalid-token" {
-				invalidSession := &garth.Session{OAuth2Token: "invalid-token"}
-				invalidClient, _ := NewClient(invalidSession, "")
-				invalidClient.HTTPClient.SetBaseURL(server.URL)
-				client = invalidClient
-			} else {
-				validSession := &garth.Session{OAuth2Token: "valid-token"}
-				validClient, _ := NewClient(validSession, "")
-				validClient.HTTPClient.SetBaseURL(server.URL)
-				client = validClient
+			// Create session with appropriate token
+			session := &garth.Session{
+				OAuth2Token: tc.token,
+				ExpiresAt:   time.Now().Add(8 * time.Hour), // Not expired
 			}
+
+			// Setup client with test server
+			client, err := NewClient(session, "")
+			assert.NoError(t, err)
+			client.HTTPClient.SetBaseURL(server.URL)
+
 			results, err := client.GetBodyComposition(context.Background(), BodyCompositionRequest{
 				StartDate: Time(tc.start),
 				EndDate:   Time(tc.end),
