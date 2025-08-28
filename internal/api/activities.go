@@ -194,9 +194,10 @@ func (c *Client) GetActivities(ctx context.Context, page int, pageSize int) ([]A
 		activities[i] = ar.ToActivity()
 	}
 
-	// Validate we received some activities
+	// Return empty slice if no activities found, but don't treat as error
+	// The pagination info will indicate totalCount = 0
 	if len(activities) == 0 {
-		return nil, nil, fmt.Errorf("no activities found")
+		return activities, &response.Pagination, nil
 	}
 
 	return activities, &response.Pagination, nil

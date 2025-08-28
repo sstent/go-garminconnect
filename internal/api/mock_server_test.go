@@ -42,30 +42,36 @@ func NewMockServer() *MockServer {
 		if m.requestCounters == nil {
 			m.requestCounters = make(map[string]int)
 		}
+		
 		endpointType := "unknown"
 		path := r.URL.Path
+		
+		// Route requests to appropriate handlers based on path patterns
 		switch {
-		case strings.HasPrefix(path, "/activitylist-service/activities/search") || path == "/activitylist-service/activities":
+		case strings.Contains(path, "/activitylist-service/activities"):
 			endpointType = "activities"
 			m.handleActivities(w, r)
-		case strings.HasPrefix(path, "/activity-service/activities") || path == "/activity-service/activities":
-			endpointType = "activities"
-			m.handleActivities(w, r)
-		case strings.HasPrefix(path, "/activity-service/activity/"):
+		case strings.Contains(path, "/activity-service/activity/"):
 			endpointType = "activityDetails"
 			m.handleActivityDetails(w, r)
-		case strings.HasPrefix(path, "/upload-service/upload") || path == "/upload-service/upload":
+		case strings.Contains(path, "/upload-service/upload"):
 			endpointType = "upload"
 			m.handleUpload(w, r)
-		case strings.HasPrefix(path, "/user-service/user") || path == "/user-service/user":
+		case strings.Contains(path, "/userprofile-service") || strings.Contains(path, "/user-service"):
 			endpointType = "user"
 			m.handleUserData(w, r)
-		case strings.HasPrefix(path, "/health-service") || path == "/health-service":
+		case strings.Contains(path, "/wellness-service") || strings.Contains(path, "/hrv-service") || strings.Contains(path, "/bodybattery-service"):
 			endpointType = "health"
 			m.handleHealthData(w, r)
-		case strings.HasPrefix(path, "/auth") || path == "/auth":
+		case strings.Contains(path, "/auth") || strings.Contains(path, "/oauth"):
 			endpointType = "auth"
 			m.handleAuth(w, r)
+		case strings.Contains(path, "/body-composition"):
+			endpointType = "bodycomposition"
+			m.handleBodyComposition(w, r)
+		case strings.Contains(path, "/gear-service"):
+			endpointType = "gear"
+			m.handleGear(w, r)
 		default:
 			endpointType = "unknown"
 			http.Error(w, "Not found", http.StatusNotFound)
@@ -150,6 +156,7 @@ func (m *MockServer) RequestCount(endpoint string) int {
 // SetResponse sets a standardized response for a specific endpoint
 func (m *MockServer) SetResponse(endpoint string, status int, body interface{}) {
 	handler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		json.NewEncoder(w).Encode(body)
 	}
@@ -175,9 +182,6 @@ func (m *MockServer) SetErrorResponse(endpoint string, status int, message strin
 	m.SetResponse(endpoint, status, map[string]string{"error": message})
 }
 
-// Default handler implementations would follow for each endpoint
-// ...
-
 // handleActivities is the default activities endpoint handler
 func (m *MockServer) handleActivities(w http.ResponseWriter, r *http.Request) {
 	if m.activitiesHandler != nil {
@@ -189,11 +193,15 @@ func (m *MockServer) handleActivities(w http.ResponseWriter, r *http.Request) {
 		{
 			ActivityID: 1,
 			Name:       "Morning Run",
+			Type:       "RUNNING",
 			StartTime:  garminTime{time.Now().Add(-24 * time.Hour)},
 			Duration:   3600,
 			Distance:   10.0,
 		},
 	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ActivitiesResponse{
 		Activities: activities,
 		Pagination: Pagination{
@@ -233,6 +241,8 @@ func (m *MockServer) handleActivityDetails(w http.ResponseWriter, r *http.Reques
 		ElevationGain: 100,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(activity)
 }
 
@@ -246,6 +256,7 @@ func (m *MockServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"activityId": 12345,
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
@@ -261,6 +272,8 @@ func (m *MockServer) handleUserData(w http.ResponseWriter, r *http.Request) {
 		"displayName": "Mock User",
 		"email":       "mock@example.com",
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
 }
 
@@ -279,6 +292,8 @@ func (m *MockServer) handleHealthData(w http.ResponseWriter, r *http.Request) {
 			"quality":  85,
 		},
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(data)
 }
 
@@ -296,6 +311,7 @@ func (m *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 			"oauth2_token": "new-mock-token",
 			"expires_in":   3600,
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 		return
@@ -303,12 +319,29 @@ func (m *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 
 	// Simulate successful authentication
 	response := map[string]interface{}{
-		"oauth2_token": "mock-access-token",
+		"oauth2_token":  "mock-access-token",
 		"refresh_token": "mock-refresh-token",
-		"expires_in":   3600,
+		"expires_in":    3600,
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// handleBodyComposition handles body composition requests
+func (m *MockServer) handleBodyComposition(w http.ResponseWriter, r *http.Request) {
+	BodyCompositionHandler(w, r)
+}
+
+// handleGear handles gear service requests
+func (m *MockServer) handleGear(w http.ResponseWriter, r *http.Request) {
+	// Basic gear handler - can be expanded as needed
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"uuid": "test-gear-uuid",
+		"name": "Test Gear",
+	})
 }
 
 // NewClientWithBaseURL creates a test client that uses the mock server's URL
