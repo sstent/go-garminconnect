@@ -20,12 +20,12 @@ func main() {
 		if err := godotenv.Load(); err != nil {
 			fmt.Println("Failed to load .env file:", err)
 		}
-	}
-
-	// Verify required credentials
-	if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
-		fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set in environment or .env file")
-		os.Exit(1)
+		
+		// Re-check after loading .env
+		if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
+			fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set in environment or .env file")
+			os.Exit(1)
+		}
 	}
 
 	// Configure session persistence
@@ -47,7 +47,8 @@ func main() {
 
 	// Perform authentication if no valid session
 	if session == nil {
-		username, password := getCredentials()
+		username := os.Getenv("GARMIN_USERNAME")
+		password := os.Getenv("GARMIN_PASSWORD")
 		session, err = authClient.Login(username, password)
 		if err != nil {
 			fmt.Printf("Authentication failed: %v\n", err)

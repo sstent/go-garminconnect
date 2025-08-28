@@ -2,8 +2,26 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
+
+// APIError represents an error returned by the API
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API request failed with status %d: %s", e.StatusCode, e.Message)
+}
+
+// Error types for API responses
+type ErrNotFound struct{}
+func (e ErrNotFound) Error() string { return "resource not found" }
+
+type ErrBadRequest struct{}
+func (e ErrBadRequest) Error() string { return "bad request" }
 
 // Time represents a Garmin Connect time value
 type Time time.Time

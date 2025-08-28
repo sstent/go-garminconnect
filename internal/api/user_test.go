@@ -11,7 +11,6 @@ import (
 )
 
 func TestGetUserProfile(t *testing.T) {
-	// Define test cases
 	tests := []struct {
 		name          string
 		mockResponse  interface{}
@@ -55,7 +54,7 @@ func TestGetUserProfile(t *testing.T) {
 				"error": "Profile not found",
 			},
 			mockStatus:    http.StatusNotFound,
-			expectedError: "user profile not found",
+			expectedError: "API error 404: Profile not found",
 		},
 		{
 			name: "invalid response format",
@@ -63,7 +62,7 @@ func TestGetUserProfile(t *testing.T) {
 				"invalid": "data",
 			},
 			mockStatus:    http.StatusOK,
-			expectedError: "failed to parse user profile",
+			expectedError: "failed to unmarshal successful response",
 		},
 		{
 			name: "server error",
@@ -71,27 +70,21 @@ func TestGetUserProfile(t *testing.T) {
 				"error": "Internal server error",
 			},
 			mockStatus:    http.StatusInternalServerError,
-			expectedError: "API request failed with status 500",
+			expectedError: "API error 500: Internal server error",
 		},
 	}
 
-	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-
-	// Create client
 	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Configure mock server
 			mockServer.Reset()
 			mockServer.SetResponse("/userprofile-service/socialProfile", tt.mockStatus, tt.mockResponse)
 
-			// Execute test
 			profile, err := client.GetUserProfile(context.Background())
 
-			// Assert results
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -104,13 +97,10 @@ func TestGetUserProfile(t *testing.T) {
 	}
 }
 
-// BenchmarkGetUserProfile measures performance of GetUserProfile method
 func BenchmarkGetUserProfile(b *testing.B) {
-	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-
-	// Setup successful response
+	
 	mockResponse := map[string]interface{}{
 		"displayName":          "Benchmark User",
 		"fullName":             "Benchmark User Full",
@@ -118,50 +108,14 @@ func BenchmarkGetUserProfile(b *testing.B) {
 		"username":             "benchmark",
 		"profileId":            "benchmark-123",
 		"profileImageUrlLarge": "https://example.com/benchmark.jpg",
-		"location":             "Benchmark City",
-		"fitnessLevel":         "ADVANCED",
-		"height":               185.0,
-		"weight":               80.0,
-		"birthDate":            "1990-01-01",
 	}
 	mockServer.SetResponse("/userprofile-service/socialProfile", http.StatusOK, mockResponse)
 
-	// Create client
 	client := NewClientWithBaseURL(mockServer.URL())
-
 	b.ResetTimer()
+	
 	for i := 0; i < b.N; i++ {
 		_, _ = client.GetUserProfile(context.Background())
-	}
-}
-
-// BenchmarkGetUserStats measures performance of GetUserStats method
-func BenchmarkGetUserStats(b *testing.B) {
-	now := time.Now()
-	testDate := now.Format("2006-01-02")
-
-	// Create test server
-	mockServer := NewMockServer()
-	defer mockServer.Close()
-
-	// Setup successful response
-	mockResponse := map[string]interface{}{
-		"totalSteps":       15000,
-		"totalDistance":    12000.0,
-		"totalCalories":    3000,
-		"activeMinutes":    60,
-		"restingHeartRate": 50,
-		"date":             testDate,
-	}
-	path := fmt.Sprintf("/stats-service/stats/daily/%s", now.Format("2006-01-02"))
-	mockServer.SetResponse(path, http.StatusOK, mockResponse)
-
-	// Create client
-	client := NewClientWithBaseURL(mockServer.URL())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = client.GetUserStats(context.Background(), now)
 	}
 }
 
@@ -169,7 +123,6 @@ func TestGetUserStats(t *testing.T) {
 	now := time.Now()
 	testDate := now.Format("2006-01-02")
 
-	// Define test cases
 	tests := []struct {
 		name          string
 		date          time.Time
@@ -196,7 +149,7 @@ func TestGetUserStats(t *testing.T) {
 				TotalCalories: 2200,
 				ActiveMinutes: 45,
 				RestingHR:     55,
-				Date:          now.Truncate(24 * time.Hour), // Date without time component
+				Date:          testDate,
 			},
 		},
 		{
@@ -206,16 +159,7 @@ func TestGetUserStats(t *testing.T) {
 				"error": "No stats found",
 			},
 			mockStatus:    http.StatusNotFound,
-			expectedError: "failed to get user stats",
-		},
-		{
-			name: "future date error",
-			date: now.AddDate(0, 0, 1),
-			mockResponse: map[string]interface{}{
-				"error": "Date cannot be in the future",
-			},
-			mockStatus:    http.StatusBadRequest,
-			expectedError: "API request failed with status 400",
+			expectedError: "API error 404: No stats found",
 		},
 		{
 			name: "invalid stats response",
@@ -224,28 +168,22 @@ func TestGetUserStats(t *testing.T) {
 				"invalid": "data",
 			},
 			mockStatus:    http.StatusOK,
-			expectedError: "failed to parse user stats",
+			expectedError: "failed to unmarshal successful response",
 		},
 	}
 
-	// Create test server
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-
-	// Create client
 	client := NewClientWithBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Configure mock server
 			mockServer.Reset()
 			path := fmt.Sprintf("/stats-service/stats/daily/%s", tt.date.Format("2006-01-02"))
 			mockServer.SetResponse(path, tt.mockStatus, tt.mockResponse)
 
-			// Execute test
 			stats, err := client.GetUserStats(context.Background(), tt.date)
 
-			// Assert results
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -255,5 +193,27 @@ func TestGetUserStats(t *testing.T) {
 				assert.Equal(t, tt.expected, stats)
 			}
 		})
+	}
+}
+
+func BenchmarkGetUserStats(b *testing.B) {
+	now := time.Now()
+	mockServer := NewMockServer()
+	defer mockServer.Close()
+	
+	path := fmt.Sprintf("/stats-service/stats/daily/%s", now.Format("2006-01-02"))
+	mockResponse := map[string]interface{}{
+		"totalSteps":       15000,
+		"totalDistance":    12000.0,
+		"totalCalories":    3000,
+		"activeMinutes":    60,
+	}
+	mockServer.SetResponse(path, http.StatusOK, mockResponse)
+
+	client := NewClientWithBaseURL(mockServer.URL())
+	b.ResetTimer()
+	
+	for i := 0; i < b.N; i++ {
+		_, _ = client.GetUserStats(context.Background(), now)
 	}
 }

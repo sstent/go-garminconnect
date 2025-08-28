@@ -54,6 +54,11 @@ func (c *Client) Get(ctx context.Context, path string, v interface{}) error {
 		return err
 	}
 
+	// Handle unmarshaling errors for successful responses
+	if resp.IsSuccess() && resp.Error() != nil {
+		return handleAPIError(resp)
+	}
+
 	if resp.StatusCode() == http.StatusUnauthorized {
 		// Force token refresh on next attempt
 		c.session = nil
@@ -77,6 +82,11 @@ func (c *Client) Post(ctx context.Context, path string, body interface{}, v inte
 
 	if err != nil {
 		return err
+	}
+
+	// Handle unmarshaling errors for successful responses
+	if resp.IsSuccess() && resp.Error() != nil {
+		return handleAPIError(resp)
 	}
 
 	if resp.StatusCode() >= 400 {
@@ -110,8 +120,9 @@ func (c *Client) refreshTokenIfNeeded() error {
 	return nil
 }
 
-// handleAPIError processes non-200 responses
+// handleAPIError processes API errors including JSON unmarshaling issues
 func handleAPIError(resp *resty.Response) error {
+	// Check if response has valid JSON error structure
 	errorResponse := struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
@@ -119,6 +130,11 @@ func handleAPIError(resp *resty.Response) error {
 
 	if err := json.Unmarshal(resp.Body(), &errorResponse); err == nil {
 		return fmt.Errorf("API error %d: %s", errorResponse.Code, errorResponse.Message)
+	}
+
+	// Check for unmarshaling errors in successful responses
+	if resp.IsSuccess() {
+		return fmt.Errorf("failed to unmarshal successful response: %w", json.Unmarshal(resp.Body(), nil))
 	}
 
 	return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
