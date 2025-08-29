@@ -60,6 +60,10 @@ func NewMockServer() *MockServer {
 			m.handleUpload(w, r)
 		case strings.Contains(path, "/userprofile-service") || strings.Contains(path, "/user-service"):
 			endpointType = "user"
+			if m.userHandler != nil {
+				m.userHandler(w, r)
+				return
+			}
 			m.handleUserData(w, r)
 		case strings.Contains(path, "/wellness-service") || strings.Contains(path, "/hrv-service") || strings.Contains(path, "/bodybattery-service"):
 			endpointType = "health"
@@ -75,6 +79,10 @@ func NewMockServer() *MockServer {
 			m.handleGear(w, r)
 		case strings.Contains(path, "/stats-service"): // Added stats routing
 			endpointType = "stats"
+			if m.statsHandler != nil {
+				m.statsHandler(w, r)
+				return
+			}
 			m.handleStats(w, r)
 		default:
 			endpointType = "unknown"
@@ -362,13 +370,21 @@ func (m *MockServer) handleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default stats response
+	// Extract date from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	date := ""
+	if len(pathParts) > 0 {
+		date = pathParts[len(pathParts)-1]
+	}
+
+	// Default stats response with consistent units (meters)
 	stats := map[string]interface{}{
 		"totalSteps":       10000,
-		"totalDistance":    8.5,
+		"totalDistance":    8500.5, // Converted to meters
 		"totalCalories":    2200,
 		"activeMinutes":    45,
 		"restingHeartRate": 55,
+		"date":             date, // Include date field
 	}
 
 	w.Header().Set("Content-Type", "application/json")

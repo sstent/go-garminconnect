@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -57,12 +58,10 @@ func TestGetUserProfile(t *testing.T) {
 			expectedError: "API error 404: Profile not found",
 		},
 		{
-			name: "invalid response format",
-			mockResponse: map[string]interface{}{
-				"invalid": "data",
-			},
+			name:          "invalid response format",
+			mockResponse:  "not-a-valid-json-object",
 			mockStatus:    http.StatusOK,
-			expectedError: "failed to unmarshal successful response",
+			expectedError: "failed to get user profile: json: cannot unmarshal string",
 		},
 		{
 			name: "server error",
@@ -81,17 +80,23 @@ func TestGetUserProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer.Reset()
-			mockServer.SetResponse("/userprofile-service/socialProfile", tt.mockStatus, tt.mockResponse)
+
+			// Set custom handler directly
+			mockServer.SetUserHandler(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tt.mockStatus)
+				json.NewEncoder(w).Encode(tt.mockResponse)
+			})
 
 			profile, err := client.GetUserProfile(context.Background())
 
 			if tt.expectedError != "" {
-				if assert.Error(t, err) {
-					assert.Contains(t, err.Error(), tt.expectedError)
-				}
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
 				assert.Nil(t, profile)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, profile) // Add nil check
 				assert.Equal(t, tt.expected, profile)
 			}
 		})
@@ -163,13 +168,11 @@ func TestGetUserStats(t *testing.T) {
 			expectedError: "API error 404: No stats found",
 		},
 		{
-			name: "invalid stats response",
-			date: now,
-			mockResponse: map[string]interface{}{
-				"invalid": "data",
-			},
+			name:          "invalid stats response",
+			date:          now,
+			mockResponse:  "invalid-json-response",
 			mockStatus:    http.StatusOK,
-			expectedError: "failed to unmarshal successful response",
+			expectedError: "failed to get user stats: json: cannot unmarshal string",
 		},
 	}
 
@@ -180,8 +183,13 @@ func TestGetUserStats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer.Reset()
-			path := fmt.Sprintf("/stats-service/stats/daily/%s", tt.date.Format("2006-01-02"))
-			mockServer.SetResponse(path, tt.mockStatus, tt.mockResponse)
+
+			// Set custom handler directly for stats
+			mockServer.SetStatsHandler(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tt.mockStatus)
+				json.NewEncoder(w).Encode(tt.mockResponse)
+			})
 
 			stats, err := client.GetUserStats(context.Background(), tt.date)
 
@@ -191,6 +199,7 @@ func TestGetUserStats(t *testing.T) {
 				assert.Nil(t, stats)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, stats) // Add nil check
 				assert.Equal(t, tt.expected, stats)
 			}
 		})
