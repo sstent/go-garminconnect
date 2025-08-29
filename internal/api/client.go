@@ -12,16 +12,29 @@ import (
 	"github.com/sstent/go-garminconnect/internal/auth/garth"
 )
 
+// Authenticator defines the method required for token refresh
+type Authenticator interface {
+	RefreshToken(oauth1Token, oauth1Secret string) (string, error)
+}
+
 type Client struct {
 	HTTPClient  *resty.Client
 	sessionPath string
 	session     *garth.Session
+	auth        Authenticator // Use interface for token refresh
 }
 
 // NewClient creates a new API client with session management
-func NewClient(session *garth.Session, sessionPath string) (*Client, error) {
-	if session == nil {
-		return nil, errors.New("session is required")
+func NewClient(auth Authenticator, session *garth.Session, sessionPath string) (*Client, error) {
+	// Try to load session from file if not provided
+	if session == nil && sessionPath != "" {
+		if loadedSession, err := garth.LoadSession(sessionPath); err == nil {
+			session = loadedSession
+		}
+	}
+
+	if session == nil || auth == nil {
+		return nil, errors.New("both authenticator and session are required")
 	}
 
 	client := resty.New()
@@ -35,6 +48,7 @@ func NewClient(session *garth.Session, sessionPath string) (*Client, error) {
 		HTTPClient:  client,
 		sessionPath: sessionPath,
 		session:     session,
+		auth:        auth,
 	}, nil
 }
 
@@ -102,21 +116,28 @@ func (c *Client) refreshTokenIfNeeded() error {
 		return nil
 	}
 
-	if c.sessionPath == "" {
-		return errors.New("session path not configured for refresh")
+	if c.auth == nil {
+		return errors.New("authenticator not configured for refresh")
 	}
 
-	session, err := garth.LoadSession(c.sessionPath)
+	// Refresh OAuth2 token using OAuth1 credentials
+	newToken, err := c.auth.RefreshToken(c.session.OAuth1Token, c.session.OAuth1Secret)
 	if err != nil {
-		return fmt.Errorf("failed to load session for refresh: %w", err)
+		return fmt.Errorf("token refresh failed: %w", err)
 	}
 
-	if session.IsExpired() {
-		return errors.New("session expired, please reauthenticate")
+	// Update session and extend expiration
+	c.session.OAuth2Token = newToken
+	c.session.ExpiresAt = time.Now().Add(8 * time.Hour)
+	c.HTTPClient.SetHeader("Authorization", "Bearer "+newToken)
+
+	// Persist updated session
+	if c.sessionPath != "" {
+		if err := c.session.Save(c.sessionPath); err != nil {
+			return fmt.Errorf("failed to save refreshed session: %w", err)
+		}
 	}
 
-	c.session = session
-	c.HTTPClient.SetHeader("Authorization", "Bearer "+session.OAuth2Token)
 	return nil
 }
 
@@ -141,8 +162,8 @@ func handleAPIError(resp *resty.Response) error {
 
 	// Check for unmarshaling errors in successful responses
 	if resp.IsSuccess() {
-		return fmt.Errorf("failed to unmarshal successful response: %w", json.Unmarshal(resp.Body(), nil))
+		return fmt.Errorf("failed to parse successful response: %s", resp.String())
 	}
 
-	return fmt.Errorf("unexpected status code: %d", resp.StatusCode())
+	return fmt.Errorf("unexpected status code: %d - %s", resp.StatusCode(), resp.String())
 }

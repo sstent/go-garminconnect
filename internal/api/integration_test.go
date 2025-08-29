@@ -81,7 +81,8 @@ func TestIntegrationHealthMetrics(t *testing.T) {
 		OAuth2Token: "test-token",
 		ExpiresAt:   time.Now().Add(8 * time.Hour),
 	}
-	client, err := NewClient(session, "")
+	// For integration tests, pass nil for authenticator since we don't need token refresh
+	client, err := NewClient(nil, session, "")
 	assert.NoError(t, err)
 	client.HTTPClient.SetBaseURL(mockServer.URL())
 

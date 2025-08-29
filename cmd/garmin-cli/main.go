@@ -57,7 +57,7 @@ func main() {
 	}
 
 	// Create API client with session management
-	apiClient, err := api.NewClient(session, sessionPath)
+	apiClient, err := api.NewClient(authClient, session, sessionPath)
 	if err != nil {
 		fmt.Printf("Failed to create API client: %v\n", err)
 		os.Exit(1)

@@ -88,8 +88,14 @@ func TestGetBodyComposition(t *testing.T) {
 				ExpiresAt:   time.Now().Add(8 * time.Hour), // Not expired
 			}
 
-			// Setup client with test server
-			client, err := NewClient(session, "")
+			// Create mock authenticator for tests
+			mockAuth := &struct {
+				RefreshToken func(_, _ string) (string, error)
+			}{}
+			mockAuth.RefreshToken = func(_, _ string) (string, error) {
+				return "refreshed-token", nil
+			}
+			client, err := NewClient(mockAuth, session, "")
 			assert.NoError(t, err)
 			client.HTTPClient.SetBaseURL(server.URL)
 

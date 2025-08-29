@@ -249,6 +249,11 @@ func (g *GarthAuthenticator) getOAuth2Token(token, secret string) (oauth2Token s
 	return strings.TrimSpace(resp.String()), nil
 }
 
+// RefreshToken refreshes the OAuth2 token using the stored OAuth1 tokens
+func (g *GarthAuthenticator) RefreshToken(oauth1Token, oauth1Secret string) (string, error) {
+	return g.getOAuth2Token(oauth1Token, oauth1Secret)
+}
+
 // Save persists the session to the specified path
 func (s *Session) Save(path string) error {
 	data, err := json.MarshalIndent(s, "", "  ")

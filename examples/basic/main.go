@@ -18,7 +18,8 @@ func main() {
 	}
 
 	// Create API client
-	client, err := api.NewClient(session, "")
+	// Pass nil authenticator since we're using a hardcoded token
+	client, err := api.NewClient(nil, session, "")
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

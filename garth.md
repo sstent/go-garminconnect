@@ -335,10 +335,10 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 - [x] Implement basic session management
 
 ### Week 2: Complete Authentication Module
-- [ ] Implement OAuth1 flow (in progress)
-- [ ] Implement OAuth2 token refresh
+- [x] Implement OAuth1 flow
+- [x] Implement OAuth2 token refresh
 - [x] Add MFA support (core implementation)
-- [ ] Comprehensive authentication testing
+- [x] Comprehensive authentication testing
 
 ### Week 3: HTTP Client Module
 - [ ] Write HTTP client tests
@@ -384,7 +384,7 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 ## 8. Success Metrics
 
 ### Functional Requirements:
-- [ ] Authentication flow matches Python library (in progress)
+- [x] Authentication flow matches Python library
 - [x] All data models supported
 - [ ] API requests work identically
 - [x] Session persistence compatible
