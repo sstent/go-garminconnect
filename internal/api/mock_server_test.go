@@ -408,13 +408,6 @@ func (m *MockServer) handleGear(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// MockAuthenticator implements garth.Authenticator for testing
-type MockAuthenticator struct{}
-
-func (m *MockAuthenticator) RefreshToken(_, _ string) (string, error) {
-	return "refreshed-token", nil
-}
-
 // NewClientWithBaseURL creates a test client that uses the mock server's URL
 func NewClientWithBaseURL(baseURL string) *Client {
 	session := &garth.Session{
@@ -423,7 +416,7 @@ func NewClientWithBaseURL(baseURL string) *Client {
 	}
 
 	// Create mock authenticator for tests
-	auth := &MockAuthenticator{}
+	auth := NewMockAuthenticator()
 
 	client, err := NewClient(auth, session, "")
 	if err != nil {

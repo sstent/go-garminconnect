@@ -89,12 +89,7 @@ func TestGetBodyComposition(t *testing.T) {
 			}
 
 			// Create mock authenticator for tests
-			mockAuth := &struct {
-				RefreshToken func(_, _ string) (string, error)
-			}{}
-			mockAuth.RefreshToken = func(_, _ string) (string, error) {
-				return "refreshed-token", nil
-			}
+			mockAuth := NewMockAuthenticator()
 			client, err := NewClient(mockAuth, session, "")
 			assert.NoError(t, err)
 			client.HTTPClient.SetBaseURL(server.URL)

@@ -10,11 +10,28 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/spf13/cobra"
 	"github.com/sstent/go-garminconnect/internal/api"
 	"github.com/sstent/go-garminconnect/internal/auth/garth"
 )
 
-func main() {
+var rootCmd = &cobra.Command{
+	Use:   "garmin-cli",
+	Short: "CLI for interacting with Garmin Connect API",
+}
+
+var authCmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Authentication commands",
+}
+
+var loginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Authenticate with Garmin Connect",
+	Run:   loginHandler,
+}
+
+func loginHandler(cmd *cobra.Command, args []string) {
 	// Try to load from .env if environment variables not set
 	if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
 		if err := godotenv.Load(); err != nil {
@@ -88,6 +105,18 @@ func main() {
 			entry.BodyFat,
 			entry.Hydration,
 		)
+	}
+}
+
+func main() {
+	// Setup command structure
+	authCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(authCmd)
+
+	// Execute CLI
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 

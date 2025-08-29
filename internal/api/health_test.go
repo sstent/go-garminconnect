@@ -193,8 +193,9 @@ func TestGetSleepData(t *testing.T) {
 				OAuth2Token: "test-token",
 				ExpiresAt:   time.Now().Add(8 * time.Hour),
 			}
-			// Pass nil authenticator for tests
-			client, err := NewClient(nil, session, "")
+			// Use mock authenticator
+			mockAuth := NewMockAuthenticator()
+			client, err := NewClient(mockAuth, session, "")
 			assert.NoError(t, err)
 			client.HTTPClient.SetBaseURL(mockServer.URL())
 
@@ -291,8 +292,9 @@ func TestGetHRVData(t *testing.T) {
 				OAuth2Token: "test-token",
 				ExpiresAt:   time.Now().Add(8 * time.Hour),
 			}
-			// Pass nil authenticator for tests
-			client, err := NewClient(nil, session, "")
+			// Use mock authenticator
+			mockAuth := NewMockAuthenticator()
+			client, err := NewClient(mockAuth, session, "")
 			assert.NoError(t, err)
 			client.HTTPClient.SetBaseURL(mockServer.URL())
 
@@ -380,8 +382,9 @@ func TestGetBodyBatteryData(t *testing.T) {
 				OAuth2Token: "test-token",
 				ExpiresAt:   time.Now().Add(8 * time.Hour),
 			}
-			// Pass nil authenticator for tests
-			client, err := NewClient(nil, session, "")
+			// Use mock authenticator
+			mockAuth := NewMockAuthenticator()
+			client, err := NewClient(mockAuth, session, "")
 			assert.NoError(t, err)
 			client.HTTPClient.SetBaseURL(mockServer.URL())
 

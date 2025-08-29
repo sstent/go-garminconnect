@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sstent/go-garminconnect/internal/auth/garth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,7 +76,18 @@ func TestGetUserProfile(t *testing.T) {
 
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL())
+	// Create client with non-expired session
+	session := &garth.Session{
+		OAuth2Token: "test-token",
+		ExpiresAt:   time.Now().Add(8 * time.Hour),
+	}
+	// Use mock authenticator
+	mockAuth := NewMockAuthenticator()
+	client, err := NewClient(mockAuth, session, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	client.HTTPClient.SetBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,7 +190,18 @@ func TestGetUserStats(t *testing.T) {
 
 	mockServer := NewMockServer()
 	defer mockServer.Close()
-	client := NewClientWithBaseURL(mockServer.URL())
+	// Create client with non-expired session
+	session := &garth.Session{
+		OAuth2Token: "test-token",
+		ExpiresAt:   time.Now().Add(8 * time.Hour),
+	}
+	// Use mock authenticator
+	mockAuth := NewMockAuthenticator()
+	client, err := NewClient(mockAuth, session, "")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	client.HTTPClient.SetBaseURL(mockServer.URL())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

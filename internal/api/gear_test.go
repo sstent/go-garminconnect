@@ -14,13 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockAuthImpl implements the Authenticator interface for tests
-type mockAuthImpl struct{}
-
-func (m *mockAuthImpl) RefreshToken(_, _ string) (string, error) {
-	return "refreshed-token", nil
-}
-
 func TestGearService(t *testing.T) {
 	// Create test server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +76,7 @@ func TestGearService(t *testing.T) {
 
 		// Create client
 		// Create mock authenticator for tests
-		mockAuth := &mockAuthImpl{}
+		mockAuth := NewMockAuthenticator()
 		client, err := NewClient(mockAuth, session, "")
 		assert.NoError(t, err)
 		client.HTTPClient.SetBaseURL(srv.URL)
@@ -103,7 +96,7 @@ func TestGearService(t *testing.T) {
 
 		// Create client
 		// Create mock authenticator for tests
-		mockAuth := &mockAuthImpl{}
+		mockAuth := NewMockAuthenticator()
 		client, err := NewClient(mockAuth, session, "")
 		assert.NoError(t, err)
 		client.HTTPClient.SetBaseURL(srv.URL)
@@ -123,7 +116,7 @@ func TestGearService(t *testing.T) {
 
 		// Create client
 		// Create mock authenticator for tests
-		mockAuth := &mockAuthImpl{}
+		mockAuth := NewMockAuthenticator()
 		client, err := NewClient(mockAuth, session, "")
 		assert.NoError(t, err)
 		client.HTTPClient.SetBaseURL(srv.URL)
