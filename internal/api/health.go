@@ -6,25 +6,16 @@ import (
 	"time"
 )
 
-// SleepData represents a user's sleep information
-type SleepData struct {
-	Date        time.Time `json:"date"`
-	Duration    float64   `json:"duration"` // in minutes
-	Quality     float64   `json:"quality"`  // 0-100 scale
-	SleepStages struct {
-		Deep  float64 `json:"deep"`
-		Light float64 `json:"light"`
-		REM   float64 `json:"rem"`
-		Awake float64 `json:"awake"`
-	} `json:"sleepStages"`
-}
-
 // HRVData represents Heart Rate Variability data
 type HRVData struct {
-	Date         time.Time `json:"date"`
-	RestingHrv   float64   `json:"restingHrv"` // in milliseconds
-	WeeklyAvg    float64   `json:"weeklyAvg"`
-	LastNightAvg float64   `json:"lastNightAvg"`
+	Date               time.Time `json:"date"`
+	RestingHrv         float64   `json:"restingHrv"`
+	WeeklyAvg          float64   `json:"weeklyAvg"`
+	LastNightAvg       float64   `json:"lastNightAvg"`
+	HrvStatus          string    `json:"hrvStatus"`
+	HrvStatusMessage   string    `json:"hrvStatusMessage"`
+	BaselineHrv        int       `json:"baselineHrv"`
+	ChangeFromBaseline int       `json:"changeFromBaseline"`
 }
 
 // BodyBatteryData represents Garmin's Body Battery energy metric
@@ -54,6 +45,28 @@ func (c *Client) GetHRVData(ctx context.Context, date time.Time) (*HRVData, erro
 
 	if err := c.Get(ctx, path, &data); err != nil {
 		return nil, fmt.Errorf("failed to get HRV data: %w", err)
+	}
+	return &data, nil
+}
+
+// GetStressData retrieves stress data for a specific date
+func (c *Client) GetStressData(ctx context.Context, date time.Time) (*DailyStress, error) {
+	var data DailyStress
+	path := fmt.Sprintf("/wellness-service/stress/daily/%s", date.Format("2006-01-02"))
+
+	if err := c.Get(ctx, path, &data); err != nil {
+		return nil, fmt.Errorf("failed to get stress data: %w", err)
+	}
+	return &data, nil
+}
+
+// GetStepsData retrieves step count data for a specific date
+func (c *Client) GetStepsData(ctx context.Context, date time.Time) (*DailySteps, error) {
+	var data DailySteps
+	path := fmt.Sprintf("/wellness-service/steps/daily/%s", date.Format("2006-01-02"))
+
+	if err := c.Get(ctx, path, &data); err != nil {
+		return nil, fmt.Errorf("failed to get steps data: %w", err)
 	}
 	return &data, nil
 }

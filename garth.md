@@ -352,9 +352,9 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 - [ ] JSON marshaling/unmarshaling tests
 
 ### Week 5: Data Models - Health Metrics
-- [ ] Stress data models
-- [ ] Steps, HRV, weight models
-- [ ] Validation and business logic
+- [x] Stress data models
+- [x] Steps, HRV, weight models
+- [x] Validation and business logic
 
 ### Week 6: Main Interface + Integration
 - [ ] High-level API implementation

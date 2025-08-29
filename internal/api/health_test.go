@@ -26,14 +26,20 @@ func BenchmarkGetSleepData(b *testing.B) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"date":     testDate,
-			"duration": 480.0,
-			"quality":  85.0,
-			"sleepStages": map[string]interface{}{
-				"deep":  120.0,
-				"light": 240.0,
-				"rem":   90.0,
-				"awake": 30.0,
+			"calendarDate":      testDate,
+			"sleepTimeSeconds":  28800, // 8 hours in seconds
+			"deepSleepSeconds":  7200,  // 2 hours
+			"lightSleepSeconds": 14400, // 4 hours
+			"remSleepSeconds":   7200,  // 2 hours
+			"awakeSeconds":      1800,  // 30 minutes
+			"sleepScore":        85,
+			"sleepScores": map[string]interface{}{
+				"overall":  85,
+				"duration": 90,
+				"deep":     80,
+				"rem":      75,
+				"light":    70,
+				"awake":    95,
 			},
 		})
 	})
@@ -124,31 +130,45 @@ func TestGetSleepData(t *testing.T) {
 			name: "successful sleep data retrieval",
 			date: now,
 			mockResponse: map[string]interface{}{
-				"date":     testDate,
-				"duration": 480.0,
-				"quality":  85.0,
-				"sleepStages": map[string]interface{}{
-					"deep":  120.0,
-					"light": 240.0,
-					"rem":   90.0,
-					"awake": 30.0,
+				"calendarDate":      testDate,
+				"sleepTimeSeconds":  28800,
+				"deepSleepSeconds":  7200,
+				"lightSleepSeconds": 14400,
+				"remSleepSeconds":   7200,
+				"awakeSeconds":      1800,
+				"sleepScore":        85,
+				"sleepScores": map[string]interface{}{
+					"overall":  85,
+					"duration": 90,
+					"deep":     80,
+					"rem":      75,
+					"light":    70,
+					"awake":    95,
 				},
 			},
 			mockStatus: http.StatusOK,
 			expected: &SleepData{
-				Date:     now.Truncate(time.Second), // Truncate to avoid precision issues
-				Duration: 480.0,
-				Quality:  85.0,
-				SleepStages: struct {
-					Deep  float64 `json:"deep"`
-					Light float64 `json:"light"`
-					REM   float64 `json:"rem"`
-					Awake float64 `json:"awake"`
+				CalendarDate:      now.Truncate(time.Second), // Truncate to avoid precision issues
+				SleepTimeSeconds:  28800,
+				DeepSleepSeconds:  7200,
+				LightSleepSeconds: 14400,
+				RemSleepSeconds:   7200,
+				AwakeSeconds:      1800,
+				SleepScore:        85,
+				SleepScores: struct {
+					Overall  int `json:"overall"`
+					Duration int `json:"duration"`
+					Deep     int `json:"deep"`
+					Rem      int `json:"rem"`
+					Light    int `json:"light"`
+					Awake    int `json:"awake"`
 				}{
-					Deep:  120.0,
-					Light: 240.0,
-					REM:   90.0,
-					Awake: 30.0,
+					Overall:  85,
+					Duration: 90,
+					Deep:     80,
+					Rem:      75,
+					Light:    70,
+					Awake:    95,
 				},
 			},
 		},
@@ -201,8 +221,19 @@ func TestGetSleepData(t *testing.T) {
 				assert.NotNil(t, data)
 				// Only check fields if data is not nil
 				if data != nil {
-					assert.Equal(t, tt.expected.Duration, data.Duration)
-					assert.Equal(t, tt.expected.Quality, data.Quality)
+					assert.Equal(t, tt.expected.CalendarDate, data.CalendarDate)
+					assert.Equal(t, tt.expected.SleepTimeSeconds, data.SleepTimeSeconds)
+					assert.Equal(t, tt.expected.DeepSleepSeconds, data.DeepSleepSeconds)
+					assert.Equal(t, tt.expected.LightSleepSeconds, data.LightSleepSeconds)
+					assert.Equal(t, tt.expected.RemSleepSeconds, data.RemSleepSeconds)
+					assert.Equal(t, tt.expected.AwakeSeconds, data.AwakeSeconds)
+					assert.Equal(t, tt.expected.SleepScore, data.SleepScore)
+					assert.Equal(t, tt.expected.SleepScores.Overall, data.SleepScores.Overall)
+					assert.Equal(t, tt.expected.SleepScores.Duration, data.SleepScores.Duration)
+					assert.Equal(t, tt.expected.SleepScores.Deep, data.SleepScores.Deep)
+					assert.Equal(t, tt.expected.SleepScores.Rem, data.SleepScores.Rem)
+					assert.Equal(t, tt.expected.SleepScores.Light, data.SleepScores.Light)
+					assert.Equal(t, tt.expected.SleepScores.Awake, data.SleepScores.Awake)
 				}
 			}
 		})

@@ -16,7 +16,7 @@ import (
 type MockServer struct {
 	server *httptest.Server
 	mu     sync.Mutex
-	
+
 	// Endpoint handlers
 	activitiesHandler      http.HandlerFunc
 	activityDetailsHandler http.HandlerFunc
@@ -24,7 +24,8 @@ type MockServer struct {
 	userHandler            http.HandlerFunc
 	healthHandler          http.HandlerFunc
 	authHandler            http.HandlerFunc
-	
+	statsHandler           http.HandlerFunc // Added for stats endpoints
+
 	// Request counters
 	requestCounters map[string]int
 }
@@ -42,10 +43,10 @@ func NewMockServer() *MockServer {
 		if m.requestCounters == nil {
 			m.requestCounters = make(map[string]int)
 		}
-		
+
 		endpointType := "unknown"
 		path := r.URL.Path
-		
+
 		// Route requests to appropriate handlers based on path patterns
 		switch {
 		case strings.Contains(path, "/activitylist-service/activities"):
@@ -72,6 +73,9 @@ func NewMockServer() *MockServer {
 		case strings.Contains(path, "/gear-service"):
 			endpointType = "gear"
 			m.handleGear(w, r)
+		case strings.Contains(path, "/stats-service"): // Added stats routing
+			endpointType = "stats"
+			m.handleStats(w, r)
 		default:
 			endpointType = "unknown"
 			http.Error(w, "Not found", http.StatusNotFound)
@@ -133,6 +137,13 @@ func (m *MockServer) SetAuthHandler(handler http.HandlerFunc) {
 	m.authHandler = handler
 }
 
+// SetStatsHandler sets a custom handler for stats endpoint
+func (m *MockServer) SetStatsHandler(handler http.HandlerFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.statsHandler = handler
+}
+
 // Reset resets all handlers and counters to default state
 func (m *MockServer) Reset() {
 	m.mu.Lock()
@@ -143,6 +154,7 @@ func (m *MockServer) Reset() {
 	m.userHandler = nil
 	m.healthHandler = nil
 	m.authHandler = nil
+	m.statsHandler = nil
 	m.requestCounters = make(map[string]int)
 }
 
@@ -174,6 +186,8 @@ func (m *MockServer) SetResponse(endpoint string, status int, body interface{}) 
 		m.SetHealthHandler(handler)
 	case "auth":
 		m.SetAuthHandler(handler)
+	case "stats":
+		m.SetStatsHandler(handler)
 	}
 }
 
@@ -199,7 +213,7 @@ func (m *MockServer) handleActivities(w http.ResponseWriter, r *http.Request) {
 			Distance:   10.0,
 		},
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(ActivitiesResponse{
@@ -267,11 +281,24 @@ func (m *MockServer) handleUserData(w http.ResponseWriter, r *http.Request) {
 		m.userHandler(w, r)
 		return
 	}
-	// Return mock user data
+
+	// Default to successful response
 	user := map[string]interface{}{
-		"displayName": "Mock User",
-		"email":       "mock@example.com",
+		"displayName":          "Mock User",
+		"fullName":             "Mock User Full",
+		"emailAddress":         "mock@example.com",
+		"username":             "mockuser",
+		"profileId":            "mock-123",
+		"profileImageUrlLarge": "https://example.com/mock.jpg",
+		"location":             "Mock Location",
+		"fitnessLevel":         "INTERMEDIATE",
+		"height":               175.0,
+		"weight":               70.0,
+		"birthDate":            "1990-01-01",
 	}
+
+	// If a custom handler is set, it will handle the response
+	// Otherwise, we return the default success response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
@@ -326,6 +353,27 @@ func (m *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// handleStats is the default stats handler
+func (m *MockServer) handleStats(w http.ResponseWriter, r *http.Request) {
+	if m.statsHandler != nil {
+		m.statsHandler(w, r)
+		return
+	}
+
+	// Default stats response
+	stats := map[string]interface{}{
+		"totalSteps":       10000,
+		"totalDistance":    8.5,
+		"totalCalories":    2200,
+		"activeMinutes":    45,
+		"restingHeartRate": 55,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(stats)
 }
 
 // handleBodyComposition handles body composition requests
