@@ -86,8 +86,9 @@ func TestGetUserProfile(t *testing.T) {
 			profile, err := client.GetUserProfile(context.Background())
 
 			if tt.expectedError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.expectedError)
+				}
 				assert.Nil(t, profile)
 			} else {
 				assert.NoError(t, err)

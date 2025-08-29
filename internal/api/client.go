@@ -122,14 +122,21 @@ func (c *Client) refreshTokenIfNeeded() error {
 
 // handleAPIError processes API errors including JSON unmarshaling issues
 func handleAPIError(resp *resty.Response) error {
-	// Check if response has valid JSON error structure
-	errorResponse := struct {
+	// First try to parse as standard Garmin error format
+	standardError := struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	}{}
+	if err := json.Unmarshal(resp.Body(), &standardError); err == nil && standardError.Code != 0 {
+		return fmt.Errorf("API error %d: %s", standardError.Code, standardError.Message)
+	}
 
-	if err := json.Unmarshal(resp.Body(), &errorResponse); err == nil {
-		return fmt.Errorf("API error %d: %s", errorResponse.Code, errorResponse.Message)
+	// Try to parse as alternative error format
+	altError := struct {
+		Error string `json:"error"`
+	}{}
+	if err := json.Unmarshal(resp.Body(), &altError); err == nil && altError.Error != "" {
+		return fmt.Errorf("API error %d: %s", resp.StatusCode(), altError.Error)
 	}
 
 	// Check for unmarshaling errors in successful responses
