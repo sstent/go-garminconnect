@@ -329,15 +329,15 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 ## 6. Implementation Timeline
 
 ### Week 1: Project Setup + Authentication Tests
-- [ ] Initialize Go module and project structure
-- [ ] Write authentication test cases
+- [x] Initialize Go module and project structure
+- [x] Write authentication test cases
 - [ ] Set up CI/CD pipeline
-- [ ] Implement basic session management
+- [x] Implement basic session management
 
 ### Week 2: Complete Authentication Module
-- [ ] Implement OAuth1 flow
+- [ ] Implement OAuth1 flow (in progress)
 - [ ] Implement OAuth2 token refresh
-- [ ] Add MFA support
+- [x] Add MFA support (core implementation)
 - [ ] Comprehensive authentication testing
 
 ### Week 3: HTTP Client Module
@@ -352,8 +352,8 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 - [ ] JSON marshaling/unmarshaling tests
 
 ### Week 5: Data Models - Health Metrics
-- [x] Stress data models
-- [x] Steps, HRV, weight models
+- [x] Stress data models (implemented)
+- [x] Steps, HRV, weight models (implemented)
 - [x] Validation and business logic
 
 ### Week 6: Main Interface + Integration
@@ -384,10 +384,10 @@ func (m *MockGarminAPI) Do(req *http.Request) (*http.Response, error) {
 ## 8. Success Metrics
 
 ### Functional Requirements:
-- [ ] Authentication flow matches Python library
-- [ ] All data models supported
+- [ ] Authentication flow matches Python library (in progress)
+- [x] All data models supported
 - [ ] API requests work identically
-- [ ] Session persistence compatible
+- [x] Session persistence compatible
 
 ### Quality Requirements:
 - [ ] >90% test coverage

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -96,16 +97,25 @@ func (g *GarthAuthenticator) Login(username, password string) (*Session, error) 
 
 // getRequestToken obtains OAuth1 request token
 func (g *GarthAuthenticator) getRequestToken() (token, secret string, err error) {
-	_, err = g.HTTPClient.R().
+	resp, err := g.HTTPClient.R().
 		SetHeader("Accept", "text/html").
-		SetResult(&struct{}{}).
 		Post(g.BaseURL + "/oauth-service/oauth/request_token")
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("request token request failed: %w", err)
 	}
 
 	// Parse token and secret from response body
-	return "temp_token", "temp_secret", nil
+	values, err := url.ParseQuery(resp.String())
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse request token response: %w", err)
+	}
+
+	token = values.Get("oauth_token")
+	secret = values.Get("oauth_token_secret")
+	if token == "" || secret == "" {
+		return "", "", errors.New("request token response missing oauth_token or oauth_token_secret")
+	}
+	return token, secret, nil
 }
 
 // authenticate handles username/password authentication and MFA
@@ -199,12 +209,44 @@ func (d DefaultConsolePrompter) GetMFACode(ctx context.Context) (string, error) 
 
 // getAccessToken exchanges request token for access token
 func (g *GarthAuthenticator) getAccessToken(token, secret, verifier string) (accessToken, accessSecret string, err error) {
-	return "access_token", "access_secret", nil
+	resp, err := g.HTTPClient.R().
+		SetQueryParam("oauth_token", token).
+		SetQueryParam("oauth_verifier", verifier).
+		Post(g.BaseURL + "/oauth-service/oauth/access_token")
+	if err != nil {
+		return "", "", fmt.Errorf("access token request failed: %w", err)
+	}
+
+	values, err := url.ParseQuery(resp.String())
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse access token response: %w", err)
+	}
+
+	accessToken = values.Get("oauth_token")
+	accessSecret = values.Get("oauth_token_secret")
+	if accessToken == "" || accessSecret == "" {
+		return "", "", errors.New("access token response missing oauth_token or oauth_token_secret")
+	}
+	return accessToken, accessSecret, nil
 }
 
 // getOAuth2Token exchanges OAuth1 token for OAuth2 token
 func (g *GarthAuthenticator) getOAuth2Token(token, secret string) (oauth2Token string, err error) {
-	return "oauth2_access_token", nil
+	resp, err := g.HTTPClient.R().
+		SetFormData(map[string]string{
+			"token":        token,
+			"token_secret": secret,
+		}).
+		Post(g.BaseURL + "/oauth-service/oauth/exchange/user/2.0")
+	if err != nil {
+		return "", fmt.Errorf("OAuth2 token exchange failed: %w", err)
+	}
+
+	if resp.StatusCode() != 200 {
+		return "", fmt.Errorf("OAuth2 token exchange failed with status %d", resp.StatusCode())
+	}
+
+	return strings.TrimSpace(resp.String()), nil
 }
 
 // Save persists the session to the specified path

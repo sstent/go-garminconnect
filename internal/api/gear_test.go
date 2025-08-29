@@ -18,7 +18,7 @@ func TestGearService(t *testing.T) {
 	// Create test server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		switch r.URL.Path {
 		case "/gear-service/stats/valid-uuid":
 			w.WriteHeader(http.StatusOK)

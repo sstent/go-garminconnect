@@ -17,7 +17,7 @@ func TestGetBodyComposition(t *testing.T) {
 		// Check for required parameters without enforcing order
 		startDate := r.URL.Query().Get("startDate")
 		endDate := r.URL.Query().Get("endDate")
-		
+
 		assert.Equal(t, "2023-01-01", startDate, "startDate should match")
 		assert.Equal(t, "2023-01-31", endDate, "endDate should match")
 

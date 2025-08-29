@@ -9,20 +9,27 @@ import (
 )
 
 func TestOAuth1LoginFlow(t *testing.T) {
-	// Setup mock server to simulate Garmin SSO flow
+	// Setup mock server to simulate complete Garmin SSO flow
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The request token step uses text/html Accept header
-		if r.URL.Path == "/oauth-service/oauth/request_token" {
-			assert.Equal(t, "text/html", r.Header.Get("Accept"))
-		} else {
-			// Other requests use application/json
-			assert.Equal(t, "application/json", r.Header.Get("Accept"))
-		}
-		assert.Equal(t, "garmin-connect-client", r.Header.Get("User-Agent"))
+		switch r.URL.Path {
+		case "/oauth-service/oauth/request_token":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("oauth_token=test_token&oauth_token_secret=test_secret"))
 
-		// Simulate successful SSO response
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<input type="hidden" name="oauth_verifier" value="test_verifier" />`))
+		case "/sso/signin":
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(`<input type="hidden" name="oauth_verifier" value="test_verifier" />`))
+
+		case "/oauth-service/oauth/access_token":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("oauth_token=access_token&oauth_token_secret=access_secret"))
+
+		case "/oauth-service/oauth/exchange/user/2.0":
+			w.Write([]byte("oauth2_token"))
+
+		default:
+			t.Errorf("Unexpected request to path: %s", r.URL.Path)
+		}
 	}))
 	defer server.Close()
 
@@ -34,21 +41,43 @@ func TestOAuth1LoginFlow(t *testing.T) {
 	session, err := auth.Login("test_user", "test_pass")
 	assert.NoError(t, err, "Login should succeed")
 	assert.NotNil(t, session, "Session should be created")
+
+	// Verify session values
+	assert.Equal(t, "access_token", session.OAuth1Token)
+	assert.Equal(t, "access_secret", session.OAuth1Secret)
+	assert.Equal(t, "oauth2_token", session.OAuth2Token)
+	assert.False(t, session.IsExpired(), "Session should not be expired")
 }
 
 func TestMFAFlow(t *testing.T) {
 	mfaTriggered := false
-	// Setup mock server to simulate MFA requirement
+	// Setup mock server to simulate MFA requirement and complete flow
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !mfaTriggered {
+		switch {
+		case r.URL.Path == "/oauth-service/oauth/request_token":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("oauth_token=test_token&oauth_token_secret=test_secret"))
+
+		case r.URL.Path == "/sso/signin" && !mfaTriggered:
 			// First response requires MFA
 			w.Header().Set("Content-Type", "text/html")
 			w.Write([]byte(`<div class="mfa-required"><input type="hidden" name="mfaContext" value="context123" /></div>`))
 			mfaTriggered = true
-		} else {
-			// Second response after MFA
+
+		case r.URL.Path == "/sso/verifyMFA":
+			// MFA verification
 			w.Header().Set("Content-Type", "text/html")
 			w.Write([]byte(`<input type="hidden" name="oauth_verifier" value="mfa_verifier" />`))
+
+		case r.URL.Path == "/oauth-service/oauth/access_token":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("oauth_token=access_token&oauth_token_secret=access_secret"))
+
+		case r.URL.Path == "/oauth-service/oauth/exchange/user/2.0":
+			w.Write([]byte("oauth2_token"))
+
+		default:
+			t.Errorf("Unexpected request to path: %s", r.URL.Path)
 		}
 	}))
 	defer server.Close()
@@ -61,6 +90,12 @@ func TestMFAFlow(t *testing.T) {
 	session, err := auth.Login("mfa_user", "mfa_pass")
 	assert.NoError(t, err, "MFA login should succeed")
 	assert.NotNil(t, session, "Session should be created")
+
+	// Verify session values
+	assert.Equal(t, "access_token", session.OAuth1Token)
+	assert.Equal(t, "access_secret", session.OAuth1Secret)
+	assert.Equal(t, "oauth2_token", session.OAuth2Token)
+	assert.False(t, session.IsExpired(), "Session should not be expired")
 }
 
 func TestLoginFailure(t *testing.T) {

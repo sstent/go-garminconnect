@@ -20,7 +20,7 @@ func main() {
 		if err := godotenv.Load(); err != nil {
 			fmt.Println("Failed to load .env file:", err)
 		}
-		
+
 		// Re-check after loading .env
 		if os.Getenv("GARMIN_USERNAME") == "" || os.Getenv("GARMIN_PASSWORD") == "" {
 			fmt.Println("GARMIN_USERNAME and GARMIN_PASSWORD must be set in environment or .env file")

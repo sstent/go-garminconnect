@@ -18,9 +18,11 @@ func (e *APIError) Error() string {
 
 // Error types for API responses
 type ErrNotFound struct{}
+
 func (e ErrNotFound) Error() string { return "resource not found" }
 
 type ErrBadRequest struct{}
+
 func (e ErrBadRequest) Error() string { return "bad request" }
 
 // Time represents a Garmin Connect time value
@@ -47,7 +49,7 @@ func (t *Time) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	
+
 	// Try multiple time formats that Garmin might use
 	formats := []string{
 		"2006-01-02T15:04:05.000Z",
@@ -57,14 +59,14 @@ func (t *Time) UnmarshalJSON(data []byte) error {
 		time.RFC3339,
 		time.RFC3339Nano,
 	}
-	
+
 	for _, format := range formats {
 		if parsedTime, err := time.Parse(format, s); err == nil {
 			*t = Time(parsedTime)
 			return nil
 		}
 	}
-	
+
 	// If none of the formats work, try parsing as RFC3339
 	parsedTime, err := time.Parse(time.RFC3339, s)
 	if err != nil {

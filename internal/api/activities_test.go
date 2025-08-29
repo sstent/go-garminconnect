@@ -18,9 +18,9 @@ func TestActivitiesEndpoints(t *testing.T) {
 	client := NewClientWithBaseURL(mockServer.URL())
 
 	tests := []struct {
-		name        string
-		setup       func()
-		testFunc    func(t *testing.T)
+		name     string
+		setup    func()
+		testFunc func(t *testing.T)
 	}{
 		{
 			name: "GetActivitiesSuccess",
@@ -28,17 +28,17 @@ func TestActivitiesEndpoints(t *testing.T) {
 				mockServer.SetActivitiesHandler(func(w http.ResponseWriter, r *http.Request) {
 					// Create a properly formatted time string for Garmin format
 					timeStr := time.Now().Add(-24 * time.Hour).Format("2006-01-02T15:04:05")
-					
+
 					// Create response with raw JSON to avoid time marshaling issues
 					response := map[string]interface{}{
 						"activities": []map[string]interface{}{
 							{
-								"activityId":      1,
-								"activityName":    "Morning Run",
-								"activityType":    "RUNNING", 
-								"startTimeLocal":  timeStr,
-								"duration":        3600.0,
-								"distance":        10.0,
+								"activityId":     1,
+								"activityName":   "Morning Run",
+								"activityType":   "RUNNING",
+								"startTimeLocal": timeStr,
+								"duration":       3600.0,
+								"distance":       10.0,
 							},
 						},
 						"pagination": map[string]interface{}{
@@ -47,7 +47,7 @@ func TestActivitiesEndpoints(t *testing.T) {
 							"totalCount": 1,
 						},
 					}
-					
+
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
 					json.NewEncoder(w).Encode(response)
@@ -81,18 +81,18 @@ func TestActivitiesEndpoints(t *testing.T) {
 
 					// Use proper time format for Garmin API
 					timeStr := time.Now().Add(-24 * time.Hour).Format("2006-01-02T15:04:05")
-					
+
 					response := map[string]interface{}{
-						"activityId":      activityID,
-						"activityName":    "Mock Activity",
-						"activityType":    "RUNNING",
-						"startTimeLocal":  timeStr,
-						"duration":        3600.0,
-						"distance":        10.0,
-						"calories":        500.0,
-						"averageHR":       150,
-						"maxHR":           170,
-						"elevationGain":   100.0,
+						"activityId":     activityID,
+						"activityName":   "Mock Activity",
+						"activityType":   "RUNNING",
+						"startTimeLocal": timeStr,
+						"duration":       3600.0,
+						"distance":       10.0,
+						"calories":       500.0,
+						"averageHR":      150,
+						"maxHR":          170,
+						"elevationGain":  100.0,
 					}
 
 					w.Header().Set("Content-Type", "application/json")
@@ -156,7 +156,7 @@ func TestActivitiesEndpoints(t *testing.T) {
 				fitData := make([]byte, 20)
 				fitData[0] = 14 // header size
 				copy(fitData[8:12], []byte(".FIT"))
-				
+
 				id, err := client.UploadActivity(context.Background(), fitData)
 				assert.NoError(t, err)
 				assert.Equal(t, int64(12345), id)
